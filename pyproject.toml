@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "stationreappropriation"
+version = "0.1.0"
+description = "La Station de Réappropriation est un registre centralisé d'outils autonomes, répondant chacun à un besoin spécifique du commun."
+authors = ["Virgile Daugé <virgile.dauge@pm.me>"]
+license = "GPLv3"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+marimo = "^0.9.9"
+electriflux = "^0.1.1"
+pandas = "^2.2.3"
+altair = "^5.4.1"
+python-dotenv = "^1.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
