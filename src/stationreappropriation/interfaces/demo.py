@@ -16,7 +16,7 @@ def __():
 
     from stationreappropriation import load_prefixed_dotenv
 
-    env = load_prefixed_dotenv(prefix='ENEDIS_ODOO_BRIDGE_')
+    env = load_prefixed_dotenv(prefix='SR_')
     flux_path = Path('~/data/flux_enedis_v2/').expanduser()
     flux_path.mkdir(parents=True, exist_ok=True)
     return (
@@ -32,12 +32,42 @@ def __():
 
 
 @app.cell
+def __(mo):
+    mo.md(
+        """
+        # Flux Enedis
+        ## Téléchargement des flux
+        """
+    )
+    return
+
+
+@app.cell(hide_code=True)
 def __(env, flux_path, mo):
     from stationreappropriation.marimo_utils import download_with_marimo_progress as _dl
 
     _processed, _errors = _dl(env, ['R15', 'R151', 'C15', 'F15', 'F12'], flux_path)
 
     mo.md(f"Processed #{len(_processed)} files, with #{len(_errors)} erreurs")
+    return
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""## Lecture des flux""")
+    return
+
+
+@app.cell
+def __(flux_path, process_flux):
+    f15 = process_flux('F15', flux_path / 'F15')
+    f15
+    return (f15,)
+
+
+@app.cell
+def __(mo):
+    mo.md("""## Filtrage temporel""")
     return
 
 
@@ -63,10 +93,38 @@ def __(mo):
 
 
 @app.cell
-def __(flux_path, process_flux):
-    f15 = process_flux('F15', flux_path / 'F15')
-    f15
-    return (f15,)
+def __(mo):
+    mo.md(
+        r"""
+        # Odoo
+        ## Lecture des abonnements en cours
+        """
+    )
+    return
+
+
+@app.cell
+def __(env):
+    from stationreappropriation.odoo import get_valid_subscriptions_pdl
+
+    subs = get_valid_subscriptions_pdl(env)
+    subs
+    return get_valid_subscriptions_pdl, subs
+
+
+@app.cell
+def __(mo):
+    mo.md("""## Lecture des PDL""")
+    return
+
+
+@app.cell
+def __(env):
+    from stationreappropriation.odoo import get_pdls
+
+    pdls = get_pdls(env)
+    pdls
+    return get_pdls, pdls
 
 
 if __name__ == "__main__":
