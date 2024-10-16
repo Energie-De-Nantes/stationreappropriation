@@ -20,15 +20,20 @@ def create_systemd_service(script_path):
     service_content = f"""
     [Unit]
     Description=Démarrage automatique de Marimo
-    After=network.target
+    After=graphical.target
+    Wants=graphical.target
 
     [Service]
+    Type=simple
     ExecStart={script_path}
     User={username}
     Environment=DISPLAY=:0
+    Environment=XAUTHORITY=/home/{username}/.Xauthority
+    Restart=on-failure
+    RestartSec=5s
 
     [Install]
-    WantedBy=multi-user.target
+    WantedBy=graphical.target
     """
     return service_content
 
