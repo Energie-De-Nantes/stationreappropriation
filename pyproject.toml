@@ -5,10 +5,10 @@ description = "La Station de Réappropriation est un registre centralisé d'outi
 authors = ["Virgile Daugé <virgile.dauge@pm.me>"]
 license = "GPLv3"
 readme = "README.md"
-include = [
-    "src/stationreappropriation/interfaces/**/*",
-    "src/stationreappropriation/scripts/start_marimo.sh",
-]
+# include = [
+#     "src/stationreappropriation/interfaces/**/*",
+#     "src/stationreappropriation/scripts/start_marimo.sh",
+# ]
 
 [tool.poetry.dependencies]
 python = "^3.12"
