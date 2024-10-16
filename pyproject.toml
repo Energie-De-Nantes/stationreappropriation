@@ -1,10 +1,14 @@
 [tool.poetry]
 name = "stationreappropriation"
-version = "0.1.0"
+version = "0.2.0"
 description = "La Station de Réappropriation est un registre centralisé d'outils autonomes, répondant chacun à un besoin spécifique du commun."
 authors = ["Virgile Daugé <virgile.dauge@pm.me>"]
 license = "GPLv3"
 readme = "README.md"
+include = [
+    "src/stationreappropriation/interfaces/**/*",
+    "src/stationreappropriation/scripts/start_marimo.sh",
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -14,6 +18,8 @@ pandas = "^2.2.3"
 altair = "^5.4.1"
 python-dotenv = "^1.0.1"
 
+[tool.poetry.scripts]
+setup-marimo-autostart = "stationreappropriation.scripts.setup_autostart:main"
 
 [build-system]
 requires = ["poetry-core"]
