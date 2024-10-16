@@ -2,6 +2,7 @@
 # stationreappropriation/scripts/setup_autostart.py
 
 import os
+import pwd
 import shutil
 import subprocess
 from pathlib import Path
@@ -14,47 +15,55 @@ def copy_start_script():
     return dest_path
 
 def create_systemd_service(script_path):
+    username = pwd.getpwuid(os.getuid()).pw_name
+    
     service_content = f"""
-        [Unit]
-        Description=Démarrage automatique de Marimo
-        After=network.target
+    [Unit]
+    Description=Démarrage automatique de Marimo
+    After=network.target
 
-        [Service]
-        ExecStart={script_path}
-        User={os.getlogin()}
-        Environment=DISPLAY=:0
+    [Service]
+    ExecStart={script_path}
+    User={username}
+    Environment=DISPLAY=:0
 
-        [Install]
-        WantedBy=multi-user.target
-        """
-    service_path = "/etc/systemd/system/marimo-autostart.service"
-    with open(service_path, "w") as f:
-        f.write(service_content)
-    return service_path
+    [Install]
+    WantedBy=multi-user.target
+    """
+    return service_content
 
-def setup_systemd_service(service_name):
-    subprocess.run(["sudo", "systemctl", "daemon-reload"])
-    subprocess.run(["sudo", "systemctl", "enable", service_name])
-    subprocess.run(["sudo", "systemctl", "start", service_name])
+
+def update_or_create_service(service_name, service_content):
+    service_path = f"/etc/systemd/system/{service_name}"
+    
+    # Arrêter le service s'il existe
+    subprocess.run(["sudo", "systemctl", "stop", service_name], check=False)
+    
+    # Écrire ou remplacer le fichier de service
+    subprocess.run(["sudo", "tee", service_path], input=service_content.encode(), check=True)
+    
+    # Recharger systemd, activer et démarrer le service
+    subprocess.run(["sudo", "systemctl", "daemon-reload"], check=True)
+    subprocess.run(["sudo", "systemctl", "enable", service_name], check=True)
+    subprocess.run(["sudo", "systemctl", "start", service_name], check=True)
 
 def main():
     try:
         print("Configuration de l'autostart de Marimo...")
         
-        # Copie du script de démarrage
         start_script_path = copy_start_script()
         print(f"Script de démarrage copié vers : {start_script_path}")
 
-        # Création du service systemd
-        service_path = create_systemd_service(start_script_path)
-        print(f"Service systemd créé : {service_path}")
-
-        # Configuration et démarrage du service
+        service_content = create_systemd_service(start_script_path)
         service_name = "marimo-autostart.service"
-        setup_systemd_service(service_name)
-        print(f"Service {service_name} activé et démarré")
-
-        print("Configuration de l'autostart de Marimo terminée avec succès.")
+        
+        update_or_create_service(service_name, service_content)
+        
+        print(f"Service {service_name} mis à jour/créé, activé et démarré")
+        
+    except subprocess.CalledProcessError as e:
+        print(f"Erreur lors de l'exécution d'une commande : {e}")
+        raise
     except Exception as e:
         print(f"Une erreur est survenue lors de la configuration : {e}")
         raise
