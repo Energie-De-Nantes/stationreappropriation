@@ -9,7 +9,8 @@ from pathlib import Path
 
 def copy_start_script():
     script_path = Path(__file__).parent / "start_marimo.sh"
-    dest_path = Path.home() / "start_marimo.sh"
+    dest_path = Path.home() / "station_reappropriation" / "start_marimo.sh"
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(script_path, dest_path)
     os.chmod(dest_path, 0o755)
     return dest_path

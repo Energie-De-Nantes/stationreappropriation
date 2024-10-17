@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from datetime import date
 
 from calendar import monthrange
@@ -19,9 +20,14 @@ def check_required(config: dict[str, str], required: list[str]):
             raise ValueError(f'Required parameter {r} not found in {config.keys()} from .env file.')
     return config
 
-def load_prefixed_dotenv(prefix: str='EOB_', required: list[str]=[]) -> dict[str, str]:
-    # Load the .env file
-    load_dotenv()
+def load_prefixed_dotenv(prefix: str='EOB_', required: list[str]=[], env_dir: str='~/station_reappropriation') -> dict[str, str]:
+    # Expand the user directory and create a Path object
+    env_path = Path(env_dir).expanduser() / '.env'
+    if not env_path.exists():
+        raise FileNotFoundError(f'No .env file found at {env_path}')
+    
+    # Load the .env file from the specified directory
+    load_dotenv(dotenv_path=env_path)
 
     # Retrieve all environment variables
     env_variables = dict(os.environ)
