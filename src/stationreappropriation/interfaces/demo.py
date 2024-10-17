@@ -66,6 +66,26 @@ def __(flux_path, process_flux):
 
 
 @app.cell
+def __(flux_path, process_flux):
+    c15 = process_flux('C15', flux_path / 'C15')
+    c15
+    return (c15,)
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""## Situation actuelle par pdl""")
+    return
+
+
+@app.cell
+def __(c15):
+    c15_latest = c15.sort_values(by='Date_Releve', ascending=False).drop_duplicates(subset=['pdl'], keep='first')
+    c15_latest
+    return (c15_latest,)
+
+
+@app.cell
 def __(mo):
     mo.md("""## Filtrage temporel""")
     return
