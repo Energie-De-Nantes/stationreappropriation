@@ -46,3 +46,19 @@ def gen_dates(current: date | None=None) -> tuple[date, date]:
     starting_date = current.replace(day=1)
     ending_date = current.replace(day = monthrange(current.year, current.month)[1])
     return starting_date, ending_date
+
+
+def gen_trimester_dates(trimester: int, current_year: int | None = None) -> tuple[date, date]:
+    if not current_year:
+        current_year = date.today().year
+    
+    if trimester not in [1, 2, 3, 4]:
+        raise ValueError("Trimester must be 1, 2, 3, or 4")
+
+    start_month = (trimester - 1) * 3 + 1
+    end_month = start_month + 2
+
+    starting_date = date(current_year, start_month, 1)
+    ending_date = date(current_year, end_month, monthrange(current_year, end_month)[1])
+
+    return starting_date, ending_date

@@ -4,7 +4,7 @@ __generated_with = "0.9.10"
 app = marimo.App(width="medium")
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __():
     import marimo as mo
     import pandas as pd
@@ -33,38 +33,6 @@ def __():
     )
 
 
-@app.cell
-def __(mo):
-    from stationreappropriation.utils import gen_dates
-    default_start, default_end = gen_dates()
-    start_date_picker = mo.ui.date(value=default_start)
-    end_date_picker = mo.ui.date(value=default_end)
-    mo.md(
-        f"""
-        ## Délimitation temporelle
-        Choisis la date de début {start_date_picker} et de fin {end_date_picker}\n
-        """
-    )
-    return (
-        default_end,
-        default_start,
-        end_date_picker,
-        gen_dates,
-        start_date_picker,
-    )
-
-
-@app.cell
-def __(mo):
-    mo.md(
-        """
-        # Flux Enedis
-        ## Téléchargement des flux
-        """
-    )
-    return
-
-
 @app.cell(hide_code=True)
 def __(env, flux_path, mo):
     from stationreappropriation.marimo_utils import download_with_marimo_progress as _dl
@@ -75,245 +43,112 @@ def __(env, flux_path, mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(mo):
-    mo.md(
-        r"""
-        ## Lecture des flux
-        ### Flux de Facturation
-        """
-    )
-    return
-
-
-@app.cell
-def __(mo):
-    mo.md(
-        """
-        #### F15
-
-        Facturation des C5. 
-        A priori pas tous les pros, à vérifier.
-        """
-    )
-    return
-
-
-@app.cell
-def __(flux_path, process_flux):
-    f15 = process_flux('F15', flux_path / 'F15')
-    f15
-    return (f15,)
-
-
-@app.cell
-def __(mo):
-    mo.md(r"""#### F12""")
-    return
-
-
-@app.cell
-def __(flux_path, process_flux):
-    f12 = process_flux('F12', flux_path / 'F12')
-    f12
-    return (f12,)
+    options = {"T1": 1, "T2": 2, "T3": 3, "T4": 4}
+    radio = mo.ui.radio(options=options, label='Choisi le Trimestre', value="T1")
+    radio
+    return options, radio
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def __(mo, radio):
+    from stationreappropriation.utils import gen_trimester_dates
+    _default_start, _default_end = gen_trimester_dates(radio.value)
+    start_date_picker = mo.ui.date(value=_default_start)
+    end_date_picker = mo.ui.date(value=_default_end)
     mo.md(
-        """
-        ### Flux contractuel (C15)
-
-        Le flux C15 est le flux contractuel, chaque ligne correspond à une modification sur un PRM. L'événement peut prendre les valeurs suivantes :
-
-        | Type d'Événement | Nature d'Événement | Signification |
-        |------------------|--------------------|--------------|
-        | CONTRAT          | PMES               | Première mise en service |
-        | CONTRAT          | MES                | Mise en service |
-        | CONTRAT          | RES                | Résiliation |
-        | CONTRAT          | CFNS               | Changement de fournisseur sortant |
-        | CONTRAT          | CFNE               | Changement de fournisseur entrant |
-        | CONTRAT          | MCT                | Modification de la formule tarifaire d'acheminement ou de la puissance souscrite ou du statut d'Autoconsommation Collective |
-        | CONTRAT          | MDCTR              | Modification manuelle d'une donnée de la situation contractuelle (puissance souscrite, catégorie client, contexte d'utilisation, caractère provisoire du contrat |
-        | CONTRAT          | MDACT              | Modification d'information acteur (titulaire ou interlocuteur contrat) via M007 ou modification manuelle |
-        | CONTRAT          | AUTRE              | Annulation de contrat, autres modifications contractuelles liées au contrat d'injection |
-        | TECHNIQUE        | MDBRA              | Modification de données de branchement |
-        | TECHNIQUE        | COU                | Coupure ou limitation de puissance |
-        | TECHNIQUE        | RET                | Rétablissement après coupure ou limitation de puissance |
-        | TECHNIQUE        | CMAT               | Changement de compteur ou de disjoncteur ou activation du calendrier Distributeur |
+        f"""
+        Date de début {start_date_picker} et de fin {end_date_picker}\n
         """
     )
+    return end_date_picker, gen_trimester_dates, start_date_picker
+
+
+@app.cell
+def __(mo):
+    mo.md("""# Résultats""")
+    return
+
+
+@app.cell(hide_code=True)
+def __(taxes):
+    _mask = (taxes['Date_Derniere_Modification_FTA'] >= taxes['d_date']) & (taxes['Date_Derniere_Modification_FTA'] <= taxes['f_date'])
+    #taxes[_mask]
     return
 
 
 @app.cell
-def __(flux_path, process_flux):
-    c15 = process_flux('C15', flux_path / 'C15')
-    c15
-    return (c15,)
+def __():
+    #c15_period
+    return
 
 
-@app.cell
-def __(c15):
-    c15[c15['Date_Releve'].isnull()]
+@app.cell(hide_code=True)
+def __(taxes):
+    grouped_df = taxes.groupby('Marque')['turpe_fix'].sum().round().reset_index()
+    grouped_df
+    return (grouped_df,)
+
+
+@app.cell(hide_code=True)
+def __(erreurs, mo, taxes, tcta):
+    assiette_cta = round(sum(taxes['turpe_fix']))
+    cta = round(assiette_cta*tcta)
+    mo.callout(mo.md(f"""Assiette CTA : **{assiette_cta}€**\n
+                   CTA: **{cta}€**
+                """),kind='success' if not erreurs else 'danger')
+    return assiette_cta, cta
+
+
+@app.cell(hide_code=True)
+def __(erreurs, mo, taxes):
+    mo.vstack([mo.accordion(erreurs),
+               mo.md('Tableau calcul CTA'),
+               taxes,
+              ])
     return
 
 
 @app.cell
 def __(mo):
-    mo.md(r"""#### Situation actuelle par pdl""")
+    mo.md(r"""# Détail des calculs""")
     return
 
 
 @app.cell
-def __(c15):
-    c15_latest = c15[c15['Type_Evenement']=='CONTRAT'].sort_values(by='Date_Evenement', ascending=False).drop_duplicates(subset=['pdl'], keep='first')
-    c15_latest
-    return (c15_latest,)
+def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
+    _c15 = process_flux('C15', flux_path / 'C15')
+    _filtered_c15 = _c15[_c15['Type_Evenement']=='CONTRAT'].copy()
+    _filtered_c15 = _filtered_c15[_filtered_c15['Date_Evenement'] <= pd.to_datetime(end_date_picker.value)]
 
+    c15_finperiode = _filtered_c15.sort_values(by='Date_Evenement', ascending=False).drop_duplicates(subset=['pdl'], keep='first')
 
-@app.cell
-def __(mo):
-    mo.md(
-        """
-        #### Situation à date de FIN
+    _mask = (_c15['Date_Evenement'] >= pd.to_datetime(start_date_picker.value)) & (_c15['Date_Evenement'] <= pd.to_datetime(end_date_picker.value))
+    c15_period = _c15[_mask]
 
-        On va filtrer le C15 pour ne pas prendre en compte les événements contractuels post date de fin
-        """
-    )
-    return
-
-
-@app.cell
-def __(c15, end_date_picker, pd):
-    _filtered_c15 = c15[c15['Type_Evenement']=='CONTRAT'].copy()
-
-    _filtered_c15['end_date'] = pd.to_datetime(end_date_picker.value)
-
-    _filtered_c15 = _filtered_c15[_filtered_c15['Date_Evenement'] <= _filtered_c15['end_date']]
-
-    c15_datefin = _filtered_c15.sort_values(by='Date_Evenement', ascending=False).drop_duplicates(subset=['pdl'], keep='first')
-    c15_datefin
-    return (c15_datefin,)
-
-
-@app.cell
-def __(mo):
-    mo.md(r"""#### Évolutions pendant la période""")
-    return
-
-
-@app.cell
-def __(c15, end_date_picker, pd, start_date_picker):
-    _mask = (c15['Date_Evenement'] >= pd.to_datetime(start_date_picker.value)) & (c15['Date_Evenement'] <= pd.to_datetime(end_date_picker.value))
-    c15_period = c15[_mask]
-    c15_period
-    return (c15_period,)
-
-
-@app.cell
-def __(mo):
-    mo.md(
-        """
-        #### Entrées 
-
-        On filtre les `Evenement_Declencheur`, pour n'obtenir que les entrées :
-
-        - RES : Mise en service
-        - PMES : Première mise en service
-        - CFNE : Changement de fournisseur entrant
-        """
-    )
-    return
-
-
-@app.cell
-def __(c15):
-    c15_in = c15[c15['Evenement_Declencheur'].isin(['MES', 'PMES', 'CFNE'])]
-    c15_in
-    return (c15_in,)
-
-
-@app.cell
-def __(mo):
-    mo.md(r"""#### Entrées dans la période""")
-    return
-
-
-@app.cell
-def __(c15_period):
     c15_in_period = c15_period[c15_period['Evenement_Declencheur'].isin(['MES', 'PMES', 'CFNE'])]
-    return (c15_in_period,)
+
+    c15_out_period = c15_period[c15_period['Evenement_Declencheur'].isin(['RES', 'CFNS'])]
+
+    return c15_finperiode, c15_in_period, c15_out_period, c15_period
 
 
 @app.cell
 def __(mo):
-    mo.md(
-        """
-        #### Sorties 
-
-        On filtre les `Evenement_Declencheur`, pour n'obtenir que les sorties :
-         - RES : Résiliation
-         - CFNS : Changement de fournisseur sortant
-        """
-    )
-    return
-
-
-@app.cell
-def __(c15):
-    c15_out = c15[c15['Evenement_Declencheur'].isin(['RES', 'CFNS'])]
-    c15_out
-    return (c15_out,)
-
-
-@app.cell
-def __(mo):
-    mo.md(r"""#### Sorties dans la période""")
+    mo.md("""## Changements dans la période""")
     return
 
 
 @app.cell
 def __(c15_period):
-    c15_out_period = c15_period[c15_period['Evenement_Declencheur'].isin(['RES', 'CFNS'])]
-    c15_out_period
-    return (c15_out_period,)
-
-
-@app.cell
-def __(mo):
-    mo.md(
-        """
-        #### Modifications Importantes
-
-        Je crois qu'il n'y a que MCT
-        """
-    )
-    return
-
-
-@app.cell
-def __(c15):
-    c15_mct = c15[c15['Evenement_Declencheur'].isin(['MCT'])]
+    c15_mct = c15_period[c15_period['Evenement_Declencheur'].isin(['MCT'])]
     c15_mct
     return (c15_mct,)
 
 
 @app.cell
-def __(mo):
-    mo.md(
-        r"""
-        ### Index
-
-        Récupération de tous les relevés quotidiens
-        """
-    )
-    return
-
-
-@app.cell
-def __(flux_path, process_flux):
+def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
     from stationreappropriation.utils import get_consumption_names
 
     r151 = process_flux('R151', flux_path / 'R151')
@@ -323,75 +158,15 @@ def __(flux_path, process_flux):
     #r151[conso_cols] = r151[conso_cols].apply(pd.to_numeric, errors='coerce')
     r151[conso_cols] = (r151[conso_cols] / 1000).round().astype('Int64')
     r151['Unité'] = 'kWh'
-    r151
-    return conso_cols, get_consumption_names, r151
 
-
-@app.cell
-def __(mo):
-    mo.md(
-        """
-        #### Index de départ
-
-        On filtre tq `Date_Releve` = date départ choisie
-        """
-    )
-    return
-
-
-@app.cell
-def __(pd, r151, start_date_picker):
     start_index = r151.copy()
-
     start_index['start_date'] = pd.to_datetime(start_date_picker.value)
-
     start_index = start_index[start_index['Date_Releve']==start_index['start_date']]
 
-
-    start_index
-    return (start_index,)
-
-
-@app.cell
-def __(end_date_picker, pd, r151):
     end_index = r151.copy()
-
     end_index['end_date'] = pd.to_datetime(end_date_picker.value)
-
     end_index = end_index[end_index['Date_Releve']==end_index['end_date']]
-    end_index
-    return (end_index,)
-
-
-@app.cell
-def __(mo):
-    mo.md("""## Filtrage temporel""")
-    return
-
-
-@app.cell
-def __(end_date_picker, f15, pd, start_date_picker):
-    filtered_f15 = f15.copy()
-    filtered_f15['start_date'] = pd.to_datetime(start_date_picker.value)
-
-    filtered_f15['end_date'] = pd.to_datetime(end_date_picker.value)
-
-    filtered_f15 = filtered_f15[filtered_f15['Date_Facture'] >= filtered_f15['start_date']]
-    filtered_f15 = filtered_f15[filtered_f15['Date_Facture'] <= filtered_f15['end_date']]
-    filtered_f15 = filtered_f15.drop(columns=['start_date', 'end_date'])
-    filtered_f15
-    return (filtered_f15,)
-
-
-@app.cell
-def __(mo):
-    mo.md(
-        r"""
-        ## Fusion
-        ### Principe
-        """
-    )
-    return
+    return conso_cols, end_index, get_consumption_names, r151, start_index
 
 
 @app.cell(hide_code=True)
@@ -409,15 +184,9 @@ def __(end_date_picker, start_date_picker):
     return (plot_data_merge,)
 
 
-@app.cell
-def __(mo):
-    mo.md(r"""### Application""")
-    return
-
-
 @app.cell(hide_code=True)
-def __(
-    c15_datefin,
+def fusion(
+    c15_finperiode,
     c15_in_period,
     c15_out_period,
     conso_cols,
@@ -425,14 +194,17 @@ def __(
     mo,
     start_index,
 ):
-
     # Base : C15 Actuel
-    _merged_enedis_data = c15_datefin[['pdl', 
-                                      'Formule_Tarifaire_Acheminement', 
-                                      'Puissance_Souscrite', 
-                                      'Num_Depannage', 
-                                      'Type_Compteur', 
-                                      'Num_Compteur']]
+    _merged_enedis_data = c15_finperiode.copy()
+    # [['pdl', 
+    #                                   'Formule_Tarifaire_Acheminement', 
+    #                                   'Puissance_Souscrite', 
+    #                                   'Num_Depannage', 
+    #                                   'Type_Compteur', 
+    #                                   'Num_Compteur', 
+    #                                   'Segment_Clientele',
+    #                                   'Categorie',    
+    #                                   ]]
     def _merge_with_prefix(A, B, prefix):
         return A.merge(B.add_prefix(prefix),
                        how='left', left_on='pdl', right_on=f'{prefix}pdl'
@@ -465,44 +237,23 @@ def __(
     # Drop duplicates from the original DataFrame
     enedis_data = _merged_enedis_data.drop_duplicates(subset=[_duplicate_column_name]).copy()
 
-
+    erreurs = {}
     if not _duplicates_df.empty:
         _to_ouput = mo.vstack([mo.callout(mo.md(f"""
                                                 **Attention: Il y a {len(_duplicates_df)} entrées dupliquées dans les données !**
                                                 Pour la suite, le pdl problématique sera écarté, les duplicatas sont affichés ci-dessous."""), kind='warn'),
                                _duplicates_df.dropna(axis=1, how='all')])
+        erreurs['Entrées dupliquées'] = _duplicates_df
+        
     else:
         _to_ouput = mo.callout(mo.md(f'Fusion réussie'), kind='success')
 
     _to_ouput
-    return (enedis_data,)
-
-
-@app.cell
-def __(enedis_data):
-    enedis_data
-    return
+    return enedis_data, erreurs
 
 
 @app.cell(hide_code=True)
-def __(mo):
-    mo.md(
-        """
-        # Calculs des consos
-        ## Choix des index
-
-        Principe : A partir des données d'Enedis, on choisit les index à utiliser : 
-
-        Pour l'index de début de période, on choisit une entrée (CFNE ou MES) si elle existe, sinon on utilise l'index donné par le flux d'index quotidiens (R151) du premier jour de la période.
-
-        Pour l'index de fin de période, on choisit une sortie (CFNs ou RES) si elle existe, sinon on utilise l'index donné par le flux d'index quotidiens (R151) du dernier jour de la période.
-        """
-    )
-    return
-
-
-@app.cell
-def __(
+def selection_index(
     end_date_picker,
     enedis_data,
     get_consumption_names,
@@ -540,20 +291,8 @@ def __(
     return (indexes,)
 
 
-@app.cell
-def __(mo):
-    mo.md(
-        """
-        ## Soustraction des index
-
-        On prend l'index de fin sélectionné précédemment, et on y soustrait l'index de début
-        """
-    )
-    return
-
-
 @app.cell(hide_code=True)
-def __(DataFrame, get_consumption_names, indexes, np, pd):
+def calcul_consos(DataFrame, get_consumption_names, indexes, np, pd):
     _cols = get_consumption_names()
     consos = indexes.copy()
 
@@ -578,17 +317,24 @@ def __(DataFrame, get_consumption_names, indexes, np, pd):
         df['HP'] = df[['HPH', 'HPB', 'HP']].sum(axis=1)
         df['HC'] = df[['HCH', 'HCB', 'HC']].sum(axis=1)
         return df.copy()
-    consos = _compute_missing_sums(consos)[['pdl', 'Formule_Tarifaire_Acheminement', 'Puissance_Souscrite', 'Num_Depannage', 'Type_Compteur', 'Num_Compteur', 'missing_data', 'd_date', 'f_date',]+_cols]
-
+    consos = _compute_missing_sums(consos)
+    consos = consos[['pdl', 
+                     'Formule_Tarifaire_Acheminement',
+                     'Puissance_Souscrite',
+                     'Num_Depannage',
+                     'Type_Compteur',
+                     'Num_Compteur',
+                     'missing_data',
+                     'd_date',
+                     'Segment_Clientele',
+                     'Categorie',
+                     'Date_Derniere_Modification_FTA',
+                     'Etat_Contractuel',
+                     'Evenement_Declencheur',
+                     'Date_Evenement',
+                     'f_date',]+_cols]
     consos['j'] = (pd.to_datetime(consos['f_date']) - pd.to_datetime(consos['d_date'])).dt.days + 1
-    consos
     return (consos,)
-
-
-@app.cell(hide_code=True)
-def __(mo):
-    mo.md(r"""## Calcul des taxes""")
-    return
 
 
 @app.cell(hide_code=True)
@@ -641,21 +387,17 @@ def __(mo, pd):
     cg = 15.48
     cc = 19.9
     tcta = 0.2193
-    mo.md(
-        f"""
-        ### Turpe
-
-        Composante de Gestion annuelle $cg = {cg}$\n
-        Composante de Comptage annuelle $cc = {cc}$\n
-        Cta $cta = {tcta} * turpe fixe$
-        """   
-    )
-    return b, c, cc, cg, tcta
 
 
-@app.cell(hide_code=True)
-def __(b, c, mo):
     mo.vstack([
+        mo.md(
+            f"""
+            ### Turpe
+        
+            Composante de Gestion annuelle $cg = {cg}$\n
+            Composante de Comptage annuelle $cc = {cc}$\n
+            Cta $cta = {tcta} * turpe fixe$
+            """),
         mo.md(r"""
               ### Composante de soutirage
 
@@ -676,11 +418,11 @@ def __(b, c, mo):
           """),
         ]
     )
-    return
+    return b, c, cc, cg, tcta
 
 
 @app.cell(hide_code=True)
-def __(b, c, cc, cg, consos, np, tcta):
+def calcul_taxes(b, c, cc, cg, consos, env, np, tcta):
     taxes = consos.copy()
     # Calcul part fixe
     def _get_tarif(row):
@@ -709,43 +451,64 @@ def __(b, c, cc, cg, consos, np, tcta):
             return 0
     taxes['turpe_var'] = taxes.apply(_calc_sum_ponderated, axis=1)
     taxes['turpe'] = taxes['turpe_fix'] + taxes['turpe_var']
+
+    from stationreappropriation.odoo import get_pdls
+
+    pdls = get_pdls(env)
+    taxes['Marque'] = taxes['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'EL')
     taxes
-    return (taxes,)
+    return get_pdls, pdls, taxes
 
 
 @app.cell
 def __(mo):
     mo.md(
-        r"""
-        # Odoo
-        ## Lecture des abonnements en cours
+        """
+        L'assiette en taxes représente la base sur laquelle un impôt ou une taxe est calculé. C'est la valeur ou la quantité (comme le revenu, la valeur d'un bien, ou une quantité de consommation) sur laquelle s'applique le taux de la taxe pour déterminer le montant dû. 
+
+        Pour la CTA, l'assiette est la part fixe du TURPE.
         """
     )
     return
 
 
 @app.cell
-def __(env):
-    from stationreappropriation.odoo import get_valid_subscriptions_pdl
-
-    subs = get_valid_subscriptions_pdl(env)
-    subs
-    return get_valid_subscriptions_pdl, subs
-
-
-@app.cell
 def __(mo):
-    mo.md("""## Lecture des PDL""")
+    mo.md(f"""
+    Les taux de la CTA sont fixés par arrêté et constituent un pourcentage de la part fixe hors taxe
+    du tarif d’utilisation des réseaux de transport et de distribution d’électricité (TURPE).
+
+    L'assiette en taxes représente la base sur laquelle un impôt ou une taxe est calculé. C'est la valeur ou la quantité (comme le revenu, la valeur d'un bien, ou une quantité de consommation) sur laquelle s'applique le taux de la taxe pour déterminer le montant dû. 
+
+    Pour la CTA, l'assiette est la part fixe du TURPE. Dans notre cas, on la calcule en sommant les parts fixes du turpe de chacun des PRM/pdl.
+    """)
     return
 
 
 @app.cell
-def __(env):
-    from stationreappropriation.odoo import get_pdls
+def __(mo):
+    mo.md(
+        """
+        # TICFE
 
-    pdls = get_pdls(env)
-    pdls
-    return get_pdls, pdls
+        [https://www.impots.gouv.fr/taxes-interieures-de-consommation-tic](https://www.impots.gouv.fr/taxes-interieures-de-consommation-tic)
+
+        En gros, on prend les MWh facturés, a la décimale qui correspond au kWh et on multiplie par 21.
+
+        ## Arrondis fiscaux :
+        Le montant total est arrondi à l'entier le plus proche
+
+        ## LES ARRONDIS DÉCLARATIFS
+        Les données portées dans les colonnes (A) « quantités » sont exprimées en mégawattheures et sont arrondies à l’unité sans décimale
+        pour la TICGN (accise sur les gaz naturels) et la TICC (accise sur les charbons).
+        Pour la TICFE (accise sur l’électricité), les quantités sont exprimées en fraction de MWh à 3 décimales soit l’équivalent du KWh (0,001 MWh).
+        Les données portées dans les colonnes tarifaires (B) sont toutes exprimées en € par mégawattheure (€/MWh).
+        Les données portées dans les colonnes « Montant A x B » sont arrondies à 2 décimales au centime d’€ à l’exception des lignes detotalisation qui sont arrondies à l’€.
+        ## CADRE 1 : TICFE (Accise sur l’électricité)
+        La taxe s’applique à l'électricité reprise au code NC 27161, quelle que soit la puissance souscrite.
+        """
+    )
+    return
 
 
 if __name__ == "__main__":
