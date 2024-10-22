@@ -65,6 +65,13 @@ def __(mo, radio):
     return end_date_picker, gen_trimester_dates, start_date_picker
 
 
+@app.cell(hide_code=True)
+def __(end_date_picker, pd, start_date_picker):
+    start_time = pd.to_datetime(start_date_picker.value)
+    end_time = pd.to_datetime(end_date_picker.value)
+    return end_time, start_time
+
+
 @app.cell
 def __(mo):
     mo.md("""# Résultats""")
@@ -72,15 +79,43 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(taxes):
-    _mask = (taxes['Date_Derniere_Modification_FTA'] >= taxes['d_date']) & (taxes['Date_Derniere_Modification_FTA'] <= taxes['f_date'])
-    #taxes[_mask]
+def __(np, taxes):
+    conditions = [
+        taxes['Date_Derniere_Modification_FTA'] >= taxes['d_date'],
+        taxes['Date_Derniere_Modification_FTA'] <= taxes['f_date'],
+    ]
+
+    conditions = [
+        taxes['Date_Evenement'] >= taxes['d_date'],
+        taxes['Date_Evenement'] <= taxes['f_date'],
+        taxes['Evenement_Declencheur'].isin(['MCT', 'MDCTR'])
+    ]
+
+    _mask = np.logical_and.reduce(conditions)
+    changements_impactants = taxes[_mask]
+    changements_impactants
+    return changements_impactants, conditions
+
+
+@app.cell
+def __(c15, changements_impactants, end_time, np):
+    _cond = [
+        c15['pdl'].isin(changements_impactants['pdl']),
+        c15['Date_Evenement'] <= end_time,
+    ]
+    c15[np.logical_and.reduce(_cond)]
     return
 
 
 @app.cell
-def __():
-    #c15_period
+def __(mo):
+    mo.md(r"""Note pour plus tard, dans le cas ou l'on a une MCT, on peut diviser la ligne du pdl en deux lignes, avec des puissances et ou FTA spécifiques, ainsi que le nb de jours associés à cette configuration. """)
+    return
+
+
+@app.cell
+def __(c15_finperiode):
+    c15_finperiode
     return
 
 
@@ -118,20 +153,19 @@ def __(mo):
 
 @app.cell
 def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
-    _c15 = process_flux('C15', flux_path / 'C15')
-    _filtered_c15 = _c15[_c15['Type_Evenement']=='CONTRAT'].copy()
+    c15 = process_flux('C15', flux_path / 'C15')
+    _filtered_c15 = c15[c15['Type_Evenement']=='CONTRAT'].copy()
     _filtered_c15 = _filtered_c15[_filtered_c15['Date_Evenement'] <= pd.to_datetime(end_date_picker.value)]
 
     c15_finperiode = _filtered_c15.sort_values(by='Date_Evenement', ascending=False).drop_duplicates(subset=['pdl'], keep='first')
 
-    _mask = (_c15['Date_Evenement'] >= pd.to_datetime(start_date_picker.value)) & (_c15['Date_Evenement'] <= pd.to_datetime(end_date_picker.value))
-    c15_period = _c15[_mask]
+    _mask = (c15['Date_Evenement'] >= pd.to_datetime(start_date_picker.value)) & (c15['Date_Evenement'] <= pd.to_datetime(end_date_picker.value))
+    c15_period = c15[_mask]
 
     c15_in_period = c15_period[c15_period['Evenement_Declencheur'].isin(['MES', 'PMES', 'CFNE'])]
 
     c15_out_period = c15_period[c15_period['Evenement_Declencheur'].isin(['RES', 'CFNS'])]
-
-    return c15_finperiode, c15_in_period, c15_out_period, c15_period
+    return c15, c15_finperiode, c15_in_period, c15_out_period, c15_period
 
 
 @app.cell
@@ -244,7 +278,7 @@ def fusion(
                                                 Pour la suite, le pdl problématique sera écarté, les duplicatas sont affichés ci-dessous."""), kind='warn'),
                                _duplicates_df.dropna(axis=1, how='all')])
         erreurs['Entrées dupliquées'] = _duplicates_df
-        
+
     else:
         _to_ouput = mo.callout(mo.md(f'Fusion réussie'), kind='success')
 
@@ -338,7 +372,7 @@ def calcul_consos(DataFrame, get_consumption_names, indexes, np, pd):
 
 
 @app.cell(hide_code=True)
-def __(mo, pd):
+def __(mo, np, pd):
     # Création du DataFrame avec les données du tableau
     _b = {
         "b": ["CU4", "CUST", "MU4", "MUDT", "LU", "CU4 – autoproduction collective", "MU4 – autoproduction collective"],
@@ -384,16 +418,27 @@ def __(mo, pd):
     }
     c = pd.DataFrame(_c).set_index('c')
 
-    cg = 15.48
-    cc = 19.9
+
     tcta = 0.2193
 
+    # Liste des puissances
+    P = [3, 6, 9, 12, 15, 18, 36]
+
+    # Constantes cg et cc
+    cg = 15.48
+    cc = 19.9
+
+    # Créer la matrice selon la formule (cg + cc + b * P) / 366
+    matrice = (cg + cc + b["€/kVA/an"].values[:, np.newaxis] * P) / 366
+
+    # Créer un DataFrame à partir de la matrice
+    matrice_df = pd.DataFrame(matrice, index=b.index, columns=[f'P={p} kVA' for p in P])
 
     mo.vstack([
         mo.md(
             f"""
             ### Turpe
-        
+
             Composante de Gestion annuelle $cg = {cg}$\n
             Composante de Comptage annuelle $cc = {cc}$\n
             Cta $cta = {tcta} * turpe fixe$
@@ -416,9 +461,10 @@ def __(mo, pd):
           T_j = (cg + cc + b \times P)/366
           \]
           """),
+        matrice_df,
         ]
     )
-    return b, c, cc, cg, tcta
+    return P, b, c, cc, cg, matrice, matrice_df, tcta
 
 
 @app.cell(hide_code=True)
