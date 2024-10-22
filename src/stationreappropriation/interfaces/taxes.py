@@ -109,7 +109,7 @@ def __(c15, changements_impactants, end_time, np):
 
 @app.cell
 def __(mo):
-    mo.md(r"""Note pour plus tard, dans le cas ou l'on a une MCT, on peut diviser la ligne du pdl en deux lignes, avec des puissances et ou FTA spécifiques, ainsi que le nb de jours associés à cette configuration. """)
+    mo.md(r"""Note pour plus tard, dans le cas ou l'on a une MCT, on peut diviser la ligne du pdl en deux lignes, avec des puissances et ou FTA spécifiques, ainsi que le nb de jours associés à cette configuration.""")
     return
 
 
@@ -127,11 +127,13 @@ def __(taxes):
 
 
 @app.cell(hide_code=True)
-def __(erreurs, mo, taxes, tcta):
+def __(accise, assiete_accise_trunc, erreurs, mo, taxes, tcta):
     assiette_cta = round(sum(taxes['turpe_fix']))
     cta = round(assiette_cta*tcta)
     mo.callout(mo.md(f"""Assiette CTA : **{assiette_cta}€**\n
-                   CTA: **{cta}€**
+                   CTA : **{cta}€**\n
+                   Assiete accise : **{assiete_accise_trunc}MWh**\n
+                   accise : **{accise}€**
                 """),kind='success' if not erreurs else 'danger')
     return assiette_cta, cta
 
@@ -148,6 +150,12 @@ def __(erreurs, mo, taxes):
 @app.cell
 def __(mo):
     mo.md(r"""# Détail des calculs""")
+    return
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""## CTA""")
     return
 
 
@@ -554,6 +562,48 @@ def __(mo):
         La taxe s’applique à l'électricité reprise au code NC 27161, quelle que soit la puissance souscrite.
         """
     )
+    return
+
+
+@app.cell
+def __(env, pd):
+    from stationreappropriation.odoo import OdooConnector
+
+    with OdooConnector(env) as odoo:
+        lines = odoo.search_read(model='account.move.line', 
+                                 filters=[[('parent_state', '=', 'posted'),
+                                           ('product_uom_id', '=', 'kWh')]],
+                                 fields=['display_name', 'parent_state', 'date', 'quantity']
+                                ).rename(columns={'date': 'date_facturation'})
+
+    lines["date_facturation"] = pd.to_datetime(lines["date_facturation"])
+    # Calculer la date de consommation (date de facturation - 1 mois)
+    lines["date"] = lines["date_facturation"] - pd.DateOffset(months=1)
+    lines
+    return OdooConnector, lines, odoo
+
+
+@app.cell
+def __(end_time, lines, start_time):
+    # Filtrer les lignes qui sont dans le trimestre
+    filtered_data = lines[(lines["date"] >= start_time) & (lines["date"] <= end_time)]
+    filtered_data
+    return (filtered_data,)
+
+
+@app.cell
+def __(filtered_data):
+    import math
+    assiete_accise = sum(filtered_data['quantity']) / 1000
+    assiete_accise_trunc = math.trunc(assiete_accise * 1000) / 1000
+    accise = assiete_accise_trunc * 21
+    assiete_accise_trunc, accise
+    return accise, assiete_accise, assiete_accise_trunc, math
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""Note pour plus tard, ici, on ne prend pas en compte les pro/pas pros, Attention, il faudra une méthode pour les distinguer plus tard.""")
     return
 
 
