@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "stationreappropriation"
-version = "0.3.2"
+version = "0.4.0"
 description = "La Station de Réappropriation est un registre centralisé d'outils autonomes, répondant chacun à un besoin spécifique du commun."
 authors = ["Virgile Daugé <virgile.dauge@pm.me>"]
 license = "GPLv3"
@@ -14,6 +14,8 @@ pandas = "^2.2.3"
 altair = "^5.4.1"
 python-dotenv = "^1.0.1"
 matplotlib = "^3.9.2"
+ipython = "^8.29.0"
+python-dateutil = "^2.9.0.post0"
 
 [tool.poetry.scripts]
 stationreappropriation-setup-autostart = "stationreappropriation.scripts.setup_autostart:main"
