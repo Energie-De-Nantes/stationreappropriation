@@ -520,9 +520,9 @@ def __(env, mo):
         ## ⚠ Aucun abonnement à facturer trouvé sur [{env['ODOO_URL']}]({env['ODOO_URL']}web#action=437&model=sale.order&view_type=kanban). ⚠ 
         Ici ne sont prises en comptes que les cartes dans la colonne **Facture brouillon créée**, et le programme n'en trouve pas.
         Le processus de facturation ne peut pas continuer en l'état.
-        
+
         Plusieurs causes possibles :
-        
+
         1. Le processus de facturation n'a pas été lancé dans Odoo. Go le lancer. 
         2. Toutes les cartes abonnement ont déjà été déplacées dans une autre colonne. Si tu souhaite néanmoins re-mettre à jour un des abonnements, il suffit de redéplacer sa carte dans la colonne Facture brouillon créée. Attention, ça va écraser les valeurs de sa facture.
         """), kind='warn')
@@ -539,19 +539,20 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(draft_orders, taxes):
-    _required_cols = ['HP', 'HC', 'BASE', 'j', 'd_date', 'f_date', 'Type_Compteur', 'Num_Compteur', 'Num_Depannage', 'pdl', 'turpe_fix', 'turpe_var', 'missing_data']
+def __(draft_orders, end_date_picker, start_date_picker, taxes):
+    _required_cols = ['HP', 'HC', 'BASE', 'j', 'd_date', 'f_date', 'Type_Compteur', 'Num_Compteur', 'Num_Depannage', 'pdl', 'turpe_fix', 'turpe_var', 'turpe', 'missing_data']
     merged_data = draft_orders.merge(taxes[_required_cols], left_on='x_pdl', right_on='pdl', how='left')
+    days_in_month = (end_date_picker.value - start_date_picker.value).days + 1
+    merged_data['update_dates'] = merged_data['j'] != days_in_month
     merged_data
-    return (merged_data,)
+    return days_in_month, merged_data
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(merged_data):
     missing_data = merged_data[(merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)]
     if not missing_data.empty : 
         ... # TODO CALLOUT ATTENTION, IL FAUT TRAITER CES CAS MANUELLEMENT : + dataframe
-        
     return (missing_data,)
 
 
@@ -570,18 +571,149 @@ def confirm_maj_odoo(mo, safety_switch):
 
 
 @app.cell(hide_code=True)
-def maj_odoo(eed, merged_data, mo, odoo, red_button):
+def __(mo):
+    mo.md(
+        r"""
+        Truc à mettre à jour
+
+        Dans les abonnements (_sale.order_) :
+
+         - Statut de facturation (_x_invoicing_state_) = 'populated' pour les abo dont on doit vérifier les factures
+         - Statut de facturation (_x_invoicing_state_) = 'checked' pour les autres abo
+
+        Dans les factures (_account.move_) :
+
+         - x_turpe
+         - x_start_invoice_period
+         - x_end_invoice_period
+         - x_type_compteur
+         - x_num_serie_compteur
+
+         Dans les lignes comptables des factures (_account.move.line_) :
+
+         - abonnement (jours) : réel si pas lissé ou lissé et MES ou RES
+         - conso : uniquement si pas lissé
+        """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def maj_odoo(merged_data, mo, np, pd):
+    _orders = pd.DataFrame(merged_data['sale.order_id'].copy())
+    _orders['x_invoicing_state'] = 'populated' if np.random.rand(len(_orders)) < .1 else 'checked'
+    _orders.rename(columns={'sale.order_id':'id'}, inplace=True)
+    orders = _orders.to_dict(orient='records')
+    mo.accordion({
+        'Abonnements':_orders, 
+    })
+    return (orders,)
+
+
+@app.cell(hide_code=True)
+def __(merged_data, mo):
+    _invoices = merged_data[['last_invoice_id', 
+                            'turpe', 
+                            'd_date', 'f_date', 
+                            'Type_Compteur', 
+                            'Num_Compteur']].copy()
+
+    _invoices['d_date'] = _invoices['d_date'].dt.strftime('%Y-%m-%d')
+    _invoices['f_date'] = _invoices['f_date'].dt.strftime('%Y-%m-%d')
+
+    _to_rename = {
+        'last_invoice_id':'id',
+        'turpe':'x_turpe',
+        'd_date':'x_start_invoice_period',
+        'f_date':'x_end_invoice_period',
+        'Type_Compteur':'x_type_compteur',
+        'Num_Compteur':'x_num_serie_compteur',
+    }
+
+    _invoices.rename(columns=_to_rename, inplace=True)
+    invoices = _invoices.to_dict(orient='records')
+
+    mo.accordion({
+        'Factures':_invoices, 
+    })
+    return (invoices,)
+
+
+@app.cell(hide_code=True)
+def __(merged_data, mo, pd):
+    update_conso_df = merged_data[~merged_data['x_lisse']].copy()
+    update_conso_df
+    lines = []
+    _hc = pd.DataFrame()
+    _hp = pd.DataFrame()
+    _base = pd.DataFrame()
+    if 'line_id_HC' in update_conso_df.columns:
+        _hc = update_conso_df[update_conso_df['line_id_HC'].notna()][['line_id_HC', 'HC']]
+        _hc.rename(columns={'line_id_HC': 'id', 'HC': 'quantity'}, inplace=True)
+        lines += _hc.to_dict(orient='records')
+
+    if 'line_id_HP' in update_conso_df.columns:
+        _hp = update_conso_df[update_conso_df['line_id_HP'].notna()][['line_id_HP', 'HP']]
+        _hp.rename(columns={'line_id_HP': 'id', 'HP': 'quantity'}, inplace=True)
+        lines += _hp.to_dict(orient='records')
+
+    if 'line_id_BASE' in update_conso_df.columns:
+        _base = update_conso_df[update_conso_df['line_id_BASE'].notna()][['line_id_BASE', 'BASE']]
+        _base.rename(columns={'line_id_HP': 'id', 'HP': 'quantity'}, inplace=True)
+        lines += _base.to_dict(orient='records')
+
+    do_update_qty = (~(merged_data['x_lisse'] == True) | (merged_data['update_dates'] == True))
+    _abo = merged_data[do_update_qty][['line_id_Abonnements', 'j']]
+    _abo.rename(columns={'line_id_Abonnements': 'id', 'j': 'quantity'}, inplace=True)
+    lines += _abo.to_dict(orient='records')
+    mo.accordion({
+        'HC':_hc, 
+        'HP':_hp, 
+        'base':_base, 
+        'jours':_abo
+    })
+    return do_update_qty, lines, update_conso_df
+
+
+@app.cell
+def __(invoices, lines, mo, orders):
+    mo.md(f"""
+        updating #{len(orders)} orders
+
+        updating #{len(invoices)} invoices
+
+        updating #{len(lines)} lines
+    """)
+    return
+
+
+@app.cell
+def __(invoices, lines, orders):
+    orders, invoices, lines
+    return
+
+
+@app.cell
+def __(
+    OdooConnector,
+    env,
+    invoices,
+    lines,
+    mo,
+    orders,
+    red_button,
+    safety_switch,
+):
     mo.stop(not red_button.value)
 
-    # Préparation des données 
-    merged_data['update_dates'] = merged_data['j'] != (eed.defs['end_date_picker'].value - eed.defs['start_date_picker'].value).days + 1
+    with OdooConnector(config=env, sim=safety_switch.value) as odoo:
+        odoo.update('sale.order', orders)
+        odoo.update('account.move', invoices)
+        odoo.update('account.move.line', lines)
 
-    odoo.update_draft_invoices(merged_data.rename(columns={'BASE': 'Base',
-                                                           'j': 'subscription_days',
-                                                           'missing_data': 'not_enough_data',
-                                                           'd_date': 'start_date',
-                                                           'f_date': 'end_date'}))
-    return
+        l = odoo.read('account.move.line', [22951], [])
+    l
+    return l, odoo
 
 
 if __name__ == "__main__":
