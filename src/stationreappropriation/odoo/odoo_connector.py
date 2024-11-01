@@ -4,6 +4,7 @@ from typing import Any, Hashable
 import pandas as pd
 from pandas import DataFrame
 
+import copy
 import time
 from stationreappropriation.utils import check_required
 
@@ -127,19 +128,20 @@ class OdooConnector:
 
     def update(self, model: str, entries: list[dict[Hashable, Any]])-> None:
         id = []
-        for e in entries:
+        _entries = copy.deepcopy(entries)
+        for e in _entries:
             i = int(e['id'])
             del e['id']
             data = e
             data = {k: str(v) if isinstance(v, np.str_) else v for k, v in data.items()}
             data = {k: int(v) if type(v) is np.int64 else v for k, v in data.items()}
-            data = {k: float(v) if type(v) is np.int64 else v for k, v in data.items()}
+            data = {k: float(v) if type(v) is np.float64 else v for k, v in data.items()}
             data = {k: v for k, v in data.items() if not pd.isna(v)}
             if not self._sim:
                 self.execute(model, 'write', [[i], data])
             id += [i]
 
-        logger.info(f'{len(entries)} {model} #{id} writen in Odoo db.' + ("[simulated]" if self.sim else ''))
+        logger.info(f'{len(_entries)} {model} #{id} writen in Odoo db.' + ("[simulated]" if self._sim else ''))
    
     def search_read(self, model: str, filters: list[list[tuple[str, str, str]]], fields: list[str]):
         """
