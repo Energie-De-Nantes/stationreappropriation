@@ -9,7 +9,7 @@ def __():
     import marimo as mo
     import pandas as pd
     import numpy as np
-
+    import logging
     from datetime import date
     from pathlib import Path
 
@@ -19,8 +19,20 @@ def __():
     from stationreappropriation.utils import gen_previous_month_boundaries, gen_last_months
 
     env = load_prefixed_dotenv(prefix='SR_')
+    # env['ODOO_URL'] = 'https://edn-duplicate.odoo.com/'
+    # env['ODOO_DB'] = 'edn-duplicate'
     flux_path = Path('~/data/flux_enedis_v2/').expanduser()
     flux_path.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,  # Set to DEBUG to capture detailed logs
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),  # Log to console
+            logging.FileHandler("marimo.log")  # Log to file (you can specify your file path)
+        ]
+    )
+    logger = logging.getLogger(__name__)
     return (
         Path,
         date,
@@ -29,6 +41,8 @@ def __():
         gen_last_months,
         gen_previous_month_boundaries,
         load_prefixed_dotenv,
+        logger,
+        logging,
         mo,
         np,
         pd,
@@ -488,6 +502,7 @@ def calcul_taxes(b, c, cc, cg, consos, env, np, tcta):
 def param_odoo(mo):
     from stationreappropriation.odoo import OdooConnector
     safety_switch = mo.ui.switch(label="", value=True)
+
     mo.md(f"""
           # Données d'entrée : ODOO
           ### Sécurité : 
@@ -514,7 +529,6 @@ def __(env, mo):
 def __(env, mo):
     from stationreappropriation.odoo import get_enhanced_draft_orders
     draft_orders = get_enhanced_draft_orders(env)
-
     _stop_msg = mo.callout(mo.md(
         f"""
         ## ⚠ Aucun abonnement à facturer trouvé sur [{env['ODOO_URL']}]({env['ODOO_URL']}web#action=437&model=sale.order&view_type=kanban). ⚠ 
@@ -544,16 +558,30 @@ def __(draft_orders, end_date_picker, start_date_picker, taxes):
     merged_data = draft_orders.merge(taxes[_required_cols], left_on='x_pdl', right_on='pdl', how='left')
     days_in_month = (end_date_picker.value - start_date_picker.value).days + 1
     merged_data['update_dates'] = merged_data['j'] != days_in_month
+    merged_data['missing_data'] = merged_data['missing_data'].astype(bool).fillna(True)
+    merged_data['something_wrong'] = (merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)
     merged_data
     return days_in_month, merged_data
 
 
+@app.cell
+def __(mo):
+    mo.md(
+        r"""
+        ## Donnéés manquantes
+
+        Pour les pdl suivants, il va falloir calculer a la main :
+        """
+    )
+    return
+
+
 @app.cell(hide_code=True)
 def __(merged_data):
-    missing_data = merged_data[(merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)]
-    if not missing_data.empty : 
-        ... # TODO CALLOUT ATTENTION, IL FAUT TRAITER CES CAS MANUELLEMENT : + dataframe
-    return (missing_data,)
+    merged_data[merged_data['something_wrong']] 
+    #if not missing_data.empty : 
+        #... # TODO CALLOUT ATTENTION, IL FAUT TRAITER CES CAS MANUELLEMENT : + dataframe
+    return
 
 
 @app.cell(hide_code=True)
@@ -599,9 +627,10 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def maj_odoo(merged_data, mo, np, pd):
+def prep_orders(merged_data, mo, np, pd):
     _orders = pd.DataFrame(merged_data['sale.order_id'].copy())
-    _orders['x_invoicing_state'] = 'populated' if np.random.rand(len(_orders)) < .1 else 'checked'
+    _orders['x_invoicing_state'] = np.where(np.random.rand(len(_orders)) < 0.1, 'populated', 'checked')
+    _orders.loc[merged_data['something_wrong'] == True, 'x_invoicing_state'] = 'draft'
     _orders.rename(columns={'sale.order_id':'id'}, inplace=True)
     orders = _orders.to_dict(orient='records')
     mo.accordion({
@@ -657,9 +686,9 @@ def __(merged_data, mo, pd):
         _hp.rename(columns={'line_id_HP': 'id', 'HP': 'quantity'}, inplace=True)
         lines += _hp.to_dict(orient='records')
 
-    if 'line_id_BASE' in update_conso_df.columns:
-        _base = update_conso_df[update_conso_df['line_id_BASE'].notna()][['line_id_BASE', 'BASE']]
-        _base.rename(columns={'line_id_HP': 'id', 'HP': 'quantity'}, inplace=True)
+    if 'line_id_Base' in update_conso_df.columns:
+        _base = update_conso_df[update_conso_df['line_id_Base'].notna()][['line_id_Base', 'BASE']]
+        _base.rename(columns={'line_id_Base': 'id', 'BASE': 'quantity'}, inplace=True)
         lines += _base.to_dict(orient='records')
 
     do_update_qty = (~(merged_data['x_lisse'] == True) | (merged_data['update_dates'] == True))
@@ -688,8 +717,8 @@ def __(invoices, lines, mo, orders):
 
 
 @app.cell
-def __(invoices, lines, orders):
-    orders, invoices, lines
+def __():
+    # orders, invoices, lines
     return
 
 
@@ -710,10 +739,7 @@ def __(
         odoo.update('sale.order', orders)
         odoo.update('account.move', invoices)
         odoo.update('account.move.line', lines)
-
-        l = odoo.read('account.move.line', [22951], [])
-    l
-    return l, odoo
+    return (odoo,)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
 import marimo
 
-__generated_with = "0.9.10"
+__generated_with = "0.9.14"
 app = marimo.App(width="medium")
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __():
     import marimo as mo
     import pandas as pd
@@ -33,7 +33,7 @@ def __():
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def __(mo):
     from stationreappropriation.utils import gen_dates
     default_start, default_end = gen_dates()
@@ -79,8 +79,28 @@ def __(env, flux_path, mo):
 def __(mo):
     mo.md(
         r"""
-        ## Lecture des flux
-        ### Flux de Facturation
+        ## Récupérer la list de nos pds
+
+        Alors oui, cela fait appel à Odoo. Mais ça va être utile pour différencier nos marques dans les flux.
+        """
+    )
+    return
+
+
+@app.cell
+def __(env):
+    from stationreappropriation.odoo import get_pdls, get_valid_subscriptions_pdl
+    pdls = get_pdls(env)
+    subs = get_valid_subscriptions_pdl(env)
+    return get_pdls, get_valid_subscriptions_pdl, pdls, subs
+
+
+@app.cell
+def __(mo):
+    mo.md(
+        r"""
+        # Lecture des flux
+        ## Flux de Facturation
         """
     )
     return
@@ -90,7 +110,7 @@ def __(mo):
 def __(mo):
     mo.md(
         """
-        #### F15
+        ### F15
 
         Facturation des C5. 
         A priori pas tous les pros, à vérifier.
@@ -100,23 +120,85 @@ def __(mo):
 
 
 @app.cell
-def __(flux_path, process_flux):
+def __(flux_path, pdls, process_flux, subs):
     f15 = process_flux('F15', flux_path / 'F15')
+    f15['Marque'] = f15['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'EL')
+    f15 = f15.merge(subs, on='pdl', how='left').rename(columns={'name': 'Abonnement'})
     f15
     return (f15,)
 
 
 @app.cell
 def __(mo):
-    mo.md(r"""#### F12""")
+    mo.md(r"""#### Sur la période uniquement""")
     return
 
 
 @app.cell
-def __(flux_path, process_flux):
+def __(end_date_picker, f15, pd, start_date_picker):
+    f15_periode = f15.copy()
+    f15_periode['start_date'] = pd.to_datetime(start_date_picker.value)
+
+    f15_periode['end_date'] = pd.to_datetime(end_date_picker.value)
+
+    f15_periode = f15_periode[f15_periode['Date_Facture'] >= f15_periode['start_date']]
+    f15_periode = f15_periode[f15_periode['Date_Facture'] <= f15_periode['end_date']]
+    f15_periode = f15_periode.drop(columns=['start_date', 'end_date'])
+    f15_periode
+    return (f15_periode,)
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""#### Prestations uniquement """)
+    return
+
+
+@app.cell
+def __(f15_periode):
+    f15_periode[f15_periode['Unite'] == 'UNITE'] 
+    return
+
+
+@app.cell
+def __(f15, f15_periode):
+    f15_periode[(f15_periode['Unite'] == 'UNITE') & (f15['Marque']== 'EDN')]
+    return
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""### F12""")
+    return
+
+
+@app.cell
+def __(flux_path, pdls, process_flux, subs):
     f12 = process_flux('F12', flux_path / 'F12')
+    f12['Marque'] = f12['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'EL')
+    f12 = f12.merge(subs, on='pdl', how='left').rename(columns={'name': 'Abonnement'})
     f12
     return (f12,)
+
+
+@app.cell
+def __(end_date_picker, f12, pd, start_date_picker):
+    f12_periode = f12.copy()
+    f12_periode['start_date'] = pd.to_datetime(start_date_picker.value)
+
+    f12_periode['end_date'] = pd.to_datetime(end_date_picker.value)
+
+    f12_periode = f12_periode[f12_periode['Date_Facture'] >= f12_periode['start_date']]
+    f12_periode = f12_periode[f12_periode['Date_Facture'] <= f12_periode['end_date']]
+    f12_periode = f12_periode.drop(columns=['start_date', 'end_date'])
+    f12_periode
+    return (f12_periode,)
+
+
+@app.cell
+def __(f12_periode):
+    f12_periode[(f12_periode['Unite'] == 'UNITE') & (f12_periode['Marque']== 'EDN')]
+    return
 
 
 @app.cell(hide_code=True)
@@ -148,8 +230,9 @@ def __(mo):
 
 
 @app.cell
-def __(flux_path, process_flux):
+def __(flux_path, pdls, process_flux):
     c15 = process_flux('C15', flux_path / 'C15')
+    c15['Marque'] = c15['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'EL')
     c15
     return (c15,)
 
@@ -282,6 +365,12 @@ def __(c15_period):
 
 
 @app.cell
+def __(c15_period):
+    c15_period[(c15_period['Evenement_Declencheur'].isin(['RES', 'CFNS'])) & (c15_period['Marque'] == 'EDN')]
+    return
+
+
+@app.cell
 def __(mo):
     mo.md(
         """
@@ -298,6 +387,19 @@ def __(c15):
     c15_mct = c15[c15['Evenement_Declencheur'].isin(['MCT'])]
     c15_mct
     return (c15_mct,)
+
+
+@app.cell
+def __(c15_period):
+    c15_period_mct = c15_period[(c15_period['Evenement_Declencheur'].isin(['MCT'])) & (c15_period['Marque']=='EDN')]
+    c15_period_mct
+    return (c15_period_mct,)
+
+
+@app.cell
+def __(c15, c15_period_mct):
+    c15[c15['pdl'].isin(c15_period_mct['pdl'])].sort_values(by=['pdl', 'Date_Releve'])
+    return
 
 
 @app.cell
@@ -347,7 +449,6 @@ def __(pd, r151, start_date_picker):
 
     start_index = start_index[start_index['Date_Releve']==start_index['start_date']]
 
-
     start_index
     return (start_index,)
 
@@ -361,26 +462,6 @@ def __(end_date_picker, pd, r151):
     end_index = end_index[end_index['Date_Releve']==end_index['end_date']]
     end_index
     return (end_index,)
-
-
-@app.cell
-def __(mo):
-    mo.md("""## Filtrage temporel""")
-    return
-
-
-@app.cell
-def __(end_date_picker, f15, pd, start_date_picker):
-    filtered_f15 = f15.copy()
-    filtered_f15['start_date'] = pd.to_datetime(start_date_picker.value)
-
-    filtered_f15['end_date'] = pd.to_datetime(end_date_picker.value)
-
-    filtered_f15 = filtered_f15[filtered_f15['Date_Facture'] >= filtered_f15['start_date']]
-    filtered_f15 = filtered_f15[filtered_f15['Date_Facture'] <= filtered_f15['end_date']]
-    filtered_f15 = filtered_f15.drop(columns=['start_date', 'end_date'])
-    filtered_f15
-    return (filtered_f15,)
 
 
 @app.cell
@@ -425,7 +506,6 @@ def __(
     mo,
     start_index,
 ):
-
     # Base : C15 Actuel
     _merged_enedis_data = c15_datefin[['pdl', 
                                       'Formule_Tarifaire_Acheminement', 
@@ -711,41 +791,6 @@ def __(b, c, cc, cg, consos, np, tcta):
     taxes['turpe'] = taxes['turpe_fix'] + taxes['turpe_var']
     taxes
     return (taxes,)
-
-
-@app.cell
-def __(mo):
-    mo.md(
-        r"""
-        # Odoo
-        ## Lecture des abonnements en cours
-        """
-    )
-    return
-
-
-@app.cell
-def __(env):
-    from stationreappropriation.odoo import get_valid_subscriptions_pdl
-
-    subs = get_valid_subscriptions_pdl(env)
-    subs
-    return get_valid_subscriptions_pdl, subs
-
-
-@app.cell
-def __(mo):
-    mo.md("""## Lecture des PDL""")
-    return
-
-
-@app.cell
-def __(env):
-    from stationreappropriation.odoo import get_pdls
-
-    pdls = get_pdls(env)
-    pdls
-    return get_pdls, pdls
 
 
 if __name__ == "__main__":
