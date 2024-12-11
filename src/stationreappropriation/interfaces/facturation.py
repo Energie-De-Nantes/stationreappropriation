@@ -359,7 +359,7 @@ def calcul_consos(DataFrame, get_consumption_names, indexes, np, pd):
                      'Evenement_Declencheur',
                      'Date_Evenement',
                      'f_date',]+_cols]
-    consos['j'] = (pd.to_datetime(consos['f_date']) - pd.to_datetime(consos['d_date'])).dt.days + 1
+    consos['j'] = (pd.to_datetime(consos['f_date']) - pd.to_datetime(consos['d_date'])).dt.days.clip(lower=0)
     return (consos,)
 
 
@@ -368,7 +368,7 @@ def __(mo, np, pd):
     # Création du DataFrame avec les données du tableau
     _b = {
         "b": ["CU4", "CUST", "MU4", "MUDT", "LU", "CU4 – autoproduction collective", "MU4 – autoproduction collective"],
-        "€/kVA/an": [9.00, 9.96, 10.56, 12.24, 81.24, 9.00, 10.68]
+        "€/kVA/an": [9.36, 10.44, 11.04, 12.72, 84.96, 9.36, 11.16]
     }
     b = pd.DataFrame(_b).set_index('b')
     _c = {
@@ -380,31 +380,31 @@ def __(mo, np, pd):
             "MU 4 - autoproduction collective, part alloproduite"
         ],
         "HPH": [
-            6.67, 0, 6.12, 0, 0,
-            1.64, 7.23, 1.64, 6.60
+            6.96, 0, 6.39, 0, 0,
+            1.72, 7.56, 1.72, 6.88
         ],
         "HCH": [
-            4.56, 0, 4.24, 0, 0,
-            1.29, 4.42, 1.29, 4.23
+            4.76, 0, 4.43, 0, 0,
+            1.34, 4.62, 1.34, 4.41
         ],
         "HPB": [
-            1.43, 0, 1.39, 0, 0,
-            0.77, 2.29, 0.77, 2.22
+            1.48, 0, 1.46, 0, 0,
+            0.81, 2.39, 0.81, 2.32
         ],
         "HCB": [
-            0.88, 0, 0.87, 0, 0,
-            0.37, 0.86, 0.37, 0.86
+            0.92, 0, 0.91, 0, 0,
+            0.39, 0.9, 0.39, 0.9
         ],
         "HP": [
-            0, 0, 0, 4.47, 0,
+            0, 0, 0, 4.68, 0,
             0, 0, 0, 0
         ],
         "HC": [
-            0, 0, 0, 3.16, 0,
+            0, 0, 0, 3.31, 0,
             0, 0, 0, 0
         ],
         "BASE": [
-            0, 4.37, 0, 0, 1.10,
+            0, 4.58, 0, 0, 1.15,
             0, 0, 0, 0
         ]
     }
@@ -417,8 +417,8 @@ def __(mo, np, pd):
     P = [3, 6, 9, 12, 15, 18, 36]
 
     # Constantes cg et cc
-    cg = 15.48
-    cc = 19.9
+    cg = 16.20
+    cc = 20.88
 
     # Créer la matrice selon la formule (cg + cc + b * P) / 366
     matrice = (cg + cc + b["€/kVA/an"].values[:, np.newaxis] * P) / 366
@@ -556,10 +556,16 @@ def __(mo):
 def __(draft_orders, end_date_picker, start_date_picker, taxes):
     _required_cols = ['HP', 'HC', 'BASE', 'j', 'd_date', 'f_date', 'Type_Compteur', 'Num_Compteur', 'Num_Depannage', 'pdl', 'turpe_fix', 'turpe_var', 'turpe', 'missing_data']
     merged_data = draft_orders.merge(taxes[_required_cols], left_on='x_pdl', right_on='pdl', how='left')
-    days_in_month = (end_date_picker.value - start_date_picker.value).days + 1
+    days_in_month = (end_date_picker.value - start_date_picker.value).days
     merged_data['update_dates'] = merged_data['j'] != days_in_month
     merged_data['missing_data'] = merged_data['missing_data'].astype(bool).fillna(True)
     merged_data['something_wrong'] = (merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)
+
+    # quick_fix
+    # _quickfix_mask = merged_data['x_lisse'] & (merged_data['j'] == 30)
+    # merged_data['update_dates'] = True
+    # merged_data['j'] = merged_data['j'].astype(float)
+    # merged_data.loc[_quickfix_mask, 'j'] = 30.42
     merged_data
     return days_in_month, merged_data
 
