@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.9.30"
 app = marimo.App(width="medium")
 
 
@@ -19,6 +19,7 @@ def __():
     from stationreappropriation.utils import gen_last_months, gen_previous_month_boundaries
 
     env = load_prefixed_dotenv(prefix='SR_')
+
     flux_path = Path('~/data/flux_enedis_v2/').expanduser()
     flux_path.mkdir(parents=True, exist_ok=True)
     return (
@@ -36,9 +37,20 @@ def __():
     )
 
 
+@app.cell
+def __():
+    return
+
+
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md("""## Délimitation temporelle""")
+    mo.md(
+        """
+        ## Délimitation temporelle
+
+        Tu peux rentrer soit le mois, soit les dates de début et de fin directement.
+        """
+    )
     return
 
 
@@ -63,17 +75,122 @@ def __(gen_previous_month_boundaries, mo, radio):
 
 
 @app.cell
-def __(flux_path, process_flux):
+def __(mo, somme_f12, somme_f15):
+    mo.md(
+    f"""
+        F12 ZEL = {somme_f12}/n
+        F15 ZEL = {somme_f15}/n
+        Total = {somme_f12 + somme_f15}
+    """)
+    return
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""## Identification des Marques""")
+    return
+
+
+@app.cell
+def __(env, mo, pd):
+    from stationreappropriation.odoo import get_pdls
+    pdls = get_pdls(env)
+    _local = pd.DataFrame({
+        'sale.order_id': [0],  # Exemple d'identifiant de commande
+        'pdl': ['14295224261882']           # Exemple de PDL
+    })
+
+    # Ajouter la nouvelle ligne à la dataframe avec pd.concat
+    pdls = pd.concat([pdls, _local], ignore_index=True)
+    mo.vstack()
+    mo.md(f"""## Liste des PDLs d'EDN """)
+    return get_pdls, pdls
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""# Détails""")
+    return
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""## F15""")
+    return
+
+
+@app.cell
+def __(
+    end_date_picker,
+    flux_path,
+    pd,
+    pdls,
+    process_flux,
+    start_date_picker,
+):
+    f15 = process_flux('F15', flux_path / 'F15')
+    f15['Marque'] = f15['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
+    f15['start_date'] = pd.to_datetime(start_date_picker.value)
+    f15['end_date'] = pd.to_datetime(end_date_picker.value)
+
+    f15 = f15[f15['Date_Facture'] >= f15['start_date']]
+    f15 = f15[f15['Date_Facture'] <= f15['end_date']]
+    f15 = f15.drop(columns=['start_date', 'end_date'])
+    f15
+    return (f15,)
+
+
+@app.cell
+def __(f15):
+    f15_zel = f15[f15['Marque']=='ZEL']
+    f15_zel
+    return (f15_zel,)
+
+
+@app.cell
+def __(f15_zel):
+    somme_f15 = sum(f15_zel['Montant_HT'].astype(float))
+    return (somme_f15,)
+
+
+@app.cell
+def __(
+    end_date_picker,
+    flux_path,
+    pd,
+    pdls,
+    process_flux,
+    start_date_picker,
+):
     f12 = process_flux('F12', flux_path / 'F12')
+    f12['Marque'] = f12['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
+    f12['Montant_HT'] = f12['Montant_HT'].astype(float)
+    f12['start_date'] = pd.to_datetime(start_date_picker.value)
+    f12['end_date'] = pd.to_datetime(end_date_picker.value)
+
+    f12 = f12[f12['Date_Facture'] >= f12['start_date']]
+    f12 = f12[f12['Date_Facture'] <= f12['end_date']]
+    f12 = f12.drop(columns=['start_date', 'end_date'])
     f12
     return (f12,)
 
 
 @app.cell
-def __(flux_path, process_flux):
-    f15 = process_flux('F15', flux_path / 'F15')
-    f15
-    return (f15,)
+def __(f12):
+    f12_zel = f12[f12['Marque']=='ZEL']
+    f12_zel
+    return (f12_zel,)
+
+
+@app.cell
+def __(f12_zel):
+    somme_f12 = sum(f12_zel['Montant_HT'])
+    return (somme_f12,)
+
+
+@app.cell
+def __():
+    return
 
 
 if __name__ == "__main__":
