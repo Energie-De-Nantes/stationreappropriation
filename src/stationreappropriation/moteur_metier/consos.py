@@ -70,9 +70,9 @@ def qui_quoi_quand(deb: pd.Timestamp, fin: pd.Timestamp, c15: DataFrame) -> Data
 
     base_de_travail = diviser_lignes_mct(base_de_travail, mct, colonnes_releve)
     
-    base_de_travail = ajout_par_defaut(deb, fin, 'R151', base_de_travail)
+    # base_de_travail = ajout_par_defaut(deb, fin, 'R151', base_de_travail)
 
-    base_de_travail = calcul_nb_jours(base_de_travail)
+    # base_de_travail = calcul_nb_jours(base_de_travail)
 
     return base_de_travail
 
@@ -168,3 +168,67 @@ def calcul_nb_jours(df: DataFrame) -> DataFrame:
     """
     df['nb_jours'] = (df['Date_Releve_fin'] - df['Date_Releve_deb']).dt.days
     return df
+
+def ajout_R151(deb: pd.Timestamp, fin: pd.Timestamp, df: DataFrame, r151: DataFrame) -> DataFrame:
+    """
+    Vient ajouter les relevés issus du R151 la ou il n'y a pas de relevé.
+
+    Note : 
+       Il peut rester des trous dans les relevés, même après cette opération.
+
+    Args:
+        deb (pd.Timestamp): La date de début de la période.
+        fin (pd.Timestamp): La date de fin de la période.
+        df (DataFrame): Le DataFrame à traiter.
+    Returns:
+        DataFrame: Le DataFrame enrichie avec les relevés issus du R151 ajoutés.
+    """
+
+    colonnes_releve_r151 = ['Date_Releve', 'HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']
+
+    # Pour les débuts de période
+    masque_deb = (df['source_releve_deb'].isna()) | (df['source_releve_deb'] == 'R151')
+    releves_debut = (
+        r151[r151['Date_Releve'].dt.date == deb.date()]
+        .set_index('pdl')[colonnes_releve_r151]
+        .assign(source_releve='R151')
+        .add_suffix('_deb')
+    )
+    
+    # Pour les fins de période
+    masque_fin = (df['source_releve_fin'].isna()) | (df['source_releve_fin'] == 'R151')
+    releves_fin = (
+        r151[r151['Date_Releve'].dt.date == fin.date()]
+        .set_index('pdl')[colonnes_releve_r151]
+        .assign(source_releve='R151')
+        .add_suffix('_fin')
+    )
+    
+    # # Fusion conditionnelle
+    # df_enrichi = df.copy()
+    
+    # # Application des données R151 uniquement sur les lignes concernées
+    # df_enrichi.loc[masque_deb] = (
+    #     df[masque_deb]
+    #     .merge(releves_debut, how='left', left_on='pdl', right_index=True)
+    # )
+    
+    # df_enrichi.loc[masque_fin] = (
+    #     df[masque_fin]
+    #     .merge(releves_fin, how='left', left_on='pdl', right_index=True)
+    # )
+    
+    # Appliquer le masque pour filtrer df
+    df_masque_deb = df[masque_deb].copy()
+
+    # Merge avec releves_debut sur les colonnes clés
+    df_masque_deb = df_masque_deb.merge(
+        releves_debut,
+        how='left',
+        left_on='pdl',
+        right_index=True,  # Car releves_debut utilise pdl comme index
+    )
+    print(df_masque_deb)
+    # Mettre à jour df uniquement pour les lignes correspondant au masque
+    df.update(df_masque_deb)
+    return releves_debut

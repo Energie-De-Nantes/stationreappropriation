@@ -121,13 +121,21 @@ def _(flux_path, process_flux):
     from stationreappropriation.utils import get_consumption_names
 
     r151 = process_flux('R151', flux_path / 'R151')
-
+    # r151['Date_Releve'] = pd.to_datetime(r151['Date_Releve'], utc=True).dt.tz_convert(PARIS_TZ)
     # Dans le r151, les index sont donnés en Wh, ce qui n'est pas le cas dans les autres flux, on va donc passer en kWh. On ne facture pas des fractions de Kwh dans tous les cas. 
     conso_cols = [c for c in get_consumption_names() if c in r151]
     r151[conso_cols] = (r151[conso_cols] / 1000).round().astype('Int64')
     r151['Unité'] = 'kWh'
     r151
     return conso_cols, get_consumption_names, r151
+
+
+@app.cell
+def _(alors, deb, fin, r151):
+    from stationreappropriation.moteur_metier.consos import ajout_R151
+
+    ajout_R151(deb, fin, alors, r151)
+    return (ajout_R151,)
 
 
 @app.cell
