@@ -1,11 +1,11 @@
 import marimo
 
-__generated_with = "0.9.34"
+__generated_with = "0.10.15"
 app = marimo.App(width="medium")
 
 
 @app.cell
-def __():
+def _():
     import marimo as mo
     import pandas as pd
     import numpy as np
@@ -34,7 +34,7 @@ def __():
 
 
 @app.cell
-def __(env, pd):
+def _(env, pd):
     from stationreappropriation.odoo import get_pdls
 
     pdls = get_pdls(env)
@@ -49,13 +49,13 @@ def __(env, pd):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""# Délimitation temporelle""")
     return
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     from stationreappropriation.utils import gen_dates
     default_start, default_end = gen_dates()
     start_date_picker = mo.ui.date(value=default_start)
@@ -73,7 +73,7 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(end_date_picker, pd, start_date_picker):
+def _(end_date_picker, pd, start_date_picker):
     from zoneinfo import ZoneInfo
     PARIS_TZ = ZoneInfo("Europe/Paris")
     start = pd.to_datetime(start_date_picker.value).tz_localize(PARIS_TZ)
@@ -82,13 +82,13 @@ def __(end_date_picker, pd, start_date_picker):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md("""# Récupération des règles de calcul du TURPE""")
     return
 
 
 @app.cell
-def __(end, start):
+def _(end, start):
     from stationreappropriation.moteur_metier.turpe import get_applicable_rules, compute_turpe
 
     turpe_rules = get_applicable_rules(start, end)
@@ -97,13 +97,13 @@ def __(end, start):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""# Récupération des données de conso""")
     return
 
 
 @app.cell(hide_code=True)
-def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
+def _(end_date_picker, flux_path, pd, process_flux, start_date_picker):
     from stationreappropriation.utils import get_consumption_names
 
     c15 = process_flux('C15', flux_path / 'C15')
@@ -137,8 +137,6 @@ def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
     end_index = r151.copy()
     end_index['end_date'] = pd.to_datetime(end_date_picker.value)
     end_index = end_index[end_index['Date_Releve']==end_index['end_date']]
-
-
     return (
         c15,
         c15_debperiode,
@@ -155,7 +153,7 @@ def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
 
 
 @app.cell(hide_code=True)
-def __(
+def _(
     c15_finperiode,
     c15_in_period,
     c15_out_period,
@@ -223,7 +221,7 @@ def __(
 
 
 @app.cell(hide_code=True)
-def __(
+def _(
     end_date_picker,
     enedis_data,
     get_consumption_names,
@@ -261,8 +259,8 @@ def __(
     return (indexes,)
 
 
-app._unparsable_cell(
-    r"""
+@app.cell(hide_code=True)
+def _(DataFrame, get_consumption_names, indexes, np, pd):
     _cols = get_consumption_names()
     consos = indexes.copy()
 
@@ -304,21 +302,18 @@ app._unparsable_cell(
                      'Date_Evenement',
                      'f_date',]+_cols]
     consos['j'] = (pd.to_datetime(consos['f_date']) - pd.to_datetime(consos['d_date'])).dt.days.clip(lower=0)
-    consos['FTA'] = 
-    """,
-    name="__",
-    column=None, disabled=False, hide_code=True
-)
+    #consos['FTA'] = 
+    return (consos,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""# Détection des MCT""")
     return
 
 
 @app.cell
-def __(c15_period, consos, np, pd, pdls):
+def _(c15_period, consos, np, pd, pdls):
     c15_mct = c15_period[c15_period['Evenement_Declencheur'].isin(['MCT'])]
     c15_mct['Marque'] = c15_mct['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     safe = consos[~consos["pdl"].isin(c15_mct["pdl"])].copy()
@@ -334,7 +329,7 @@ def __(c15_period, consos, np, pd, pdls):
 
 
 @app.cell
-def __(PARIS_TZ, c15, c15_mct, end, np, pd, pdls):
+def _(PARIS_TZ, c15, c15_mct, end, np, pd, pdls):
     _cond = [
         c15['pdl'].isin(c15_mct['pdl']),
         pd.to_datetime(c15['Date_Evenement']).dt.tz_localize(PARIS_TZ) <= end,
@@ -346,19 +341,19 @@ def __(PARIS_TZ, c15, c15_mct, end, np, pd, pdls):
 
 
 @app.cell
-def __(safe):
+def _(safe):
     safe
     return
 
 
 @app.cell
-def __(turpe_rules):
+def _(turpe_rules):
     turpe_rules
     return
 
 
 @app.cell
-def __(compute_turpe, pdls, safe, turpe_rules):
+def _(compute_turpe, pdls, safe, turpe_rules):
     turpe = compute_turpe(safe, turpe_rules)
     turpe['Marque'] = turpe['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     turpe
@@ -366,7 +361,7 @@ def __(compute_turpe, pdls, safe, turpe_rules):
 
 
 @app.cell
-def __(turpe):
+def _(turpe):
     grouped = turpe[['Marque', 'turpe_fixe', 'turpe_var']].groupby('Marque').sum().round(0)
     grouped.loc['Total'] = grouped.sum(numeric_only=True)
     grouped

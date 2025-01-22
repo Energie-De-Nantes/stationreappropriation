@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-
+import warnings
 from zoneinfo import ZoneInfo
 from pandas import DataFrame
 
@@ -185,50 +185,74 @@ def ajout_R151(deb: pd.Timestamp, fin: pd.Timestamp, df: DataFrame, r151: DataFr
     """
 
     colonnes_releve_r151 = ['Date_Releve', 'HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']
-
+    r151['Date_Releve'] = (
+        pd.to_datetime(r151['Date_Releve'])
+        .dt.tz_localize(None)
+        .dt.tz_localize(ZoneInfo("Europe/Paris"))
+    )
     # Pour les débuts de période
-    masque_deb = (df['source_releve_deb'].isna()) | (df['source_releve_deb'] == 'R151')
-    releves_debut = (
+    
+    releves_deb = (
         r151[r151['Date_Releve'].dt.date == deb.date()]
         .set_index('pdl')[colonnes_releve_r151]
         .assign(source_releve='R151')
         .add_suffix('_deb')
     )
     
-    # Pour les fins de période
-    masque_fin = (df['source_releve_fin'].isna()) | (df['source_releve_fin'] == 'R151')
     releves_fin = (
         r151[r151['Date_Releve'].dt.date == fin.date()]
         .set_index('pdl')[colonnes_releve_r151]
         .assign(source_releve='R151')
         .add_suffix('_fin')
     )
-    
-    # # Fusion conditionnelle
-    # df_enrichi = df.copy()
-    
-    # # Application des données R151 uniquement sur les lignes concernées
-    # df_enrichi.loc[masque_deb] = (
-    #     df[masque_deb]
-    #     .merge(releves_debut, how='left', left_on='pdl', right_index=True)
-    # )
-    
-    # df_enrichi.loc[masque_fin] = (
-    #     df[masque_fin]
-    #     .merge(releves_fin, how='left', left_on='pdl', right_index=True)
-    # )
-    
-    # Appliquer le masque pour filtrer df
-    df_masque_deb = df[masque_deb].copy()
+    r = df.copy()
+    # Trouver les valeurs à mettre à jour dans df
+    masque_deb = (r['source_releve_deb'].isna()) | (r['source_releve_deb'] == 'R151')
+    masque_fin = (r['source_releve_fin'].isna()) | (r['source_releve_fin'] == 'R151')
 
-    # Merge avec releves_debut sur les colonnes clés
-    df_masque_deb = df_masque_deb.merge(
-        releves_debut,
-        how='left',
-        left_on='pdl',
-        right_index=True,  # Car releves_debut utilise pdl comme index
+    # MAJ des valeurs 
+    r.loc[masque_deb, releves_deb.columns] = (
+        releves_deb
+        .reindex(r.loc[masque_deb, 'pdl'])
+        .values
     )
-    print(df_masque_deb)
-    # Mettre à jour df uniquement pour les lignes correspondant au masque
-    df.update(df_masque_deb)
-    return releves_debut
+    r.loc[masque_fin, releves_fin.columns] = (
+        releves_fin
+        .reindex(r.loc[masque_fin, 'pdl'])
+        .values
+    )
+    return r
+
+def calcul_energie(df: DataFrame) -> DataFrame:
+    """
+    Calcul de la consommation d'énergie en kWh, par cadran
+    
+    """
+    # Calcul de la consommation d'énergie
+    r = df.copy()
+
+    cadrans = ['HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']
+    for c in cadrans:
+        colonne_deb = f"{c}_deb"
+        colonne_fin = f"{c}_fin"
+        if colonne_deb in r.columns and colonne_fin in r.columns:
+            # Vérifie que les deux sources de relevé sont non nulles
+            masque_valide = r['source_releve_deb'].notna() & r['source_releve_fin'].notna()
+            diff = r.loc[masque_valide, colonne_fin] - r.loc[masque_valide, colonne_deb]
+            
+            pdls_negatifs = r.loc[masque_valide][diff < 0]['pdl'].tolist()
+            if pdls_negatifs:
+                warnings.warn(f"Valeurs négatives détectées pour le compteur {c} "
+                            f"sur les PDLs: {pdls_negatifs}")
+            
+            # Initialise la colonne avec NaN
+            r[c] = pd.NA
+            # Applique le calcul uniquement où mask_valide est True
+            r.loc[masque_valide, c] = diff
+            
+            # Calcul du nombre de jours entre les deux relevés
+            r['j'] = pd.NA
+            r.loc[masque_valide,'j'] = (r.loc[masque_valide,'Date_Releve_fin'] - r.loc[masque_valide,'Date_Releve_deb']).dt.days
+    
+    return r
+    

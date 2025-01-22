@@ -14,6 +14,11 @@ def load_turpe_rules() -> DataFrame:
     PARIS_TZ = ZoneInfo("Europe/Paris")
     turpe_rules["start"] = pd.to_datetime(turpe_rules["start"]).dt.tz_localize(PARIS_TZ)
     turpe_rules["end"] = pd.to_datetime(turpe_rules["end"]).dt.tz_localize(PARIS_TZ, ambiguous='NaT')
+
+    # Convertir toutes les colonnes non-meta en float
+    meta_columns = ["start", "end", "Formule_Tarifaire_Acheminement"]
+    numeric_columns = [col for col in turpe_rules.columns if col not in meta_columns]
+    turpe_rules[numeric_columns] = turpe_rules[numeric_columns].astype(float)
     return turpe_rules
 
 def get_applicable_rules(start: pd.Timestamp, end: pd.Timestamp, rules: pd.DataFrame|None=None) -> pd.DataFrame:
@@ -38,7 +43,6 @@ def get_applicable_rules(start: pd.Timestamp, end: pd.Timestamp, rules: pd.DataF
     ]
 
     return applicable_rules
-
 
 def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
     """
@@ -65,7 +69,7 @@ def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
     # Calcul vectoriel des coûts fixes et variables
     merged["CS_fixe"] = merged["b"] * merged["Puissance_Souscrite"]
     for col in conso_cols:
-      merged[f"turpe_{col}"] = merged[f"{col}_entry"] * merged[f"{col}_rule"] / 100
+        merged[f"turpe_{col}"] =  pd.to_numeric(merged[f"{col}_entry"] * merged[f"{col}_rule"] / 100, errors='coerce')
 
     merged["turpe_fixe_annuel"] = merged["CS_fixe"] + merged["cg"] + merged["cc"]
     merged["turpe_fixe_j"] = merged["turpe_fixe_annuel"] / 366
@@ -73,6 +77,16 @@ def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
     merged["turpe_fixe"] = merged["turpe_fixe_j"] * merged["j"]
 
     merged["turpe_var"] = merged[['turpe_'+col for col in conso_cols]].sum(axis=1)
+
+    columns_to_drop = [col for col in merged.columns if col.endswith('_entry')]+['end']
+    columns_to_rename = {'start': 'Version_Turpe'}
+    
+    merged = (
+        merged
+        .drop(columns=columns_to_drop)
+        .rename(columns=columns_to_rename)
+    )
+    merged['Version_Turpe'] = merged['Version_Turpe'].dt.date
     return merged
 
     

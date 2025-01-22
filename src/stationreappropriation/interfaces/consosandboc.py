@@ -134,13 +134,49 @@ def _(flux_path, process_flux):
 def _(alors, deb, fin, r151):
     from stationreappropriation.moteur_metier.consos import ajout_R151
 
-    ajout_R151(deb, fin, alors, r151)
-    return (ajout_R151,)
+    indexes = ajout_R151(deb, fin, alors, r151)
+    return ajout_R151, indexes
 
 
 @app.cell
-def _():
+def _(indexes, pd):
+    from stationreappropriation.moteur_metier.consos import calcul_energie
+
+    energies = calcul_energie(indexes)
+    energies['Puissance_Souscrite'] = pd.to_numeric(energies['Puissance_Souscrite'])
+    energies
+    return calcul_energie, energies
+
+
+@app.cell
+def _(energies):
+    energies[energies['pdl'] == '14266280688020']
     return
+
+
+@app.cell
+def _(deb, energies, fin):
+    from stationreappropriation.moteur_metier.turpe import get_applicable_rules, compute_turpe
+
+    rules = get_applicable_rules(deb, fin)
+    turpe = compute_turpe(entries=energies, rules=rules)
+    turpe
+    return compute_turpe, get_applicable_rules, rules, turpe
+
+
+@app.cell
+def _(turpe):
+    turpe.groupby('Ref_Situation_Contractuelle').sum()
+    return
+
+
+@app.cell
+def _(c15, deb, fin, r151):
+    from stationreappropriation.moteur_metier.services import energies_et_taxes
+
+    turpe2 = energies_et_taxes(deb, fin, c15, r151)
+    turpe2
+    return energies_et_taxes, turpe2
 
 
 if __name__ == "__main__":
