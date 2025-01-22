@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.30"
+__generated_with = "0.9.34"
 app = marimo.App(width="medium")
 
 
@@ -174,14 +174,16 @@ def __(mo):
     return (file_browser,)
 
 
-app._unparsable_cell(
-    r"""
-    Après lecture du m023, on ajoute la colonne Actif, qui est construite à partir de la table de présence dans notre périmètre décrite au dessus.
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(
+        """
+        Après lecture du m023, on ajoute la colonne Actif, qui est construite à partir de la table de présence dans notre périmètre décrite au dessus.
 
-    Timeserie obtenue :
-    """,
-    name="__"
-)
+        Timeserie obtenue :
+        """
+    )
+    return
 
 
 @app.cell(hide_code=True)
@@ -397,6 +399,16 @@ def __(piv_grouped_df, x):
 
 
 @app.cell
+def __(piv_grouped_df):
+    # Grouper par mois et sommer les résultats précédents
+    grouped_daily_df = piv_grouped_df.resample('D').sum() / 1e3
+    grouped_daily_df = grouped_daily_df.round(3)
+    grouped_daily_df = grouped_daily_df.drop(['part EDN', 'part EDN_consolidee'], axis=1,)
+    grouped_daily_df
+    return (grouped_daily_df,)
+
+
+@app.cell
 def __(alt, conso_j_chart, mo, pd, piv_grouped_df):
     # Reset the index to make 'Date' a column
     _piv_grouped_df = piv_grouped_df.round(2).reset_index()
@@ -530,14 +542,14 @@ def __(periodes_profil_pdl, timeserie_df):
     def find_profil(row):
         p = row['pdl']
         d = row['Date']  # La date provient maintenant de la colonne 'Date'
-        
+
         # On essaie de récupérer le sous-DataFrame pour le pdl spécifié
         try:
             sub_df = periodes_profil_pdl.xs(p, level='pdl')
         except KeyError:
             # Si le pdl n'existe pas dans periodes_profil_pdl, on renvoie None
             return None
-        
+
         # sub_df a un IntervalIndex, on vérifie quel intervalle contient la date d
         mask = sub_df.index.contains(d)
         if mask.any():
@@ -564,7 +576,7 @@ def __(mo):
     mo.md(
         r"""
         ### Conclusion S518 :
-        Il semble y avoir pleins de trous dans la raquette temporelle. Il y a plein de périodes ou le profil n'est pas défini. Possible interpoler, mais il semble préférable d'explorer d'autres solutions en premier. 
+        Il semble y avoir pleins de trous dans la raquette temporelle. Il y a plein de périodes ou le profil n'est pas défini. Possible interpoler, mais il semble préférable d'explorer d'autres solutions en premier.
         """
     )
     return
@@ -605,7 +617,7 @@ def __(file_browser_s507, pd, timeserie_df):
         s507_df = pd.concat(_s507_df_list, ignore_index=True).rename(columns=_corresp)
         s507_df['start_date'] = pd.to_datetime(s507_df['start_date'], format="%d/%m/%Y")
         s507_df['end_date'] = pd.to_datetime(s507_df['end_date'], format="%d/%m/%Y")
-        
+
         s507_df = s507_df.sort_values(['pdl', 'start_date'])
         #s507_df[['profil', 'sens', 'sous_profil']] = s507_df['code_profil'].str.split('_', expand=True)
     else:
@@ -654,16 +666,16 @@ def __(pd, s507_df):
     def merge_profiles_in_group(df_group):
         # Assumptions :
         # df_group contient 'pdl', 'profil', 'start_date', 'end_date'
-        
+
         # Conversion en datetime si nécessaire
         df_group['start_date'] = pd.to_datetime(df_group['start_date'])
         df_group['end_date'] = pd.to_datetime(df_group['end_date'])
-        
+
         # Tri par start_date
         df_group = df_group.sort_values('start_date').reset_index(drop=True)
-        
+
         merged_rows = []
-        
+
         # Initialisation avec la première ligne du groupe
         current_profil = df_group.loc[0, 'profil']
         # current_start = df_group.loc[0, 'start_date']
@@ -677,18 +689,18 @@ def __(pd, s507_df):
                 # Fin de la période = (début de la nouvelle - 1 jour)
                 # Ici, on impose la fin de la période précédente à la veille du début de cette nouvelle ligne
                 prev_end = row['start_date'] - pd.Timedelta(days=1)
-                
+
                 merged_rows.append({
                     'pdl': df_group.loc[0, 'pdl'],
                     'profil': current_profil,
                     'start_date': current_start,
                     'end_date': prev_end
                 })
-                
+
                 # Mise à jour du profil et du start de la nouvelle période
                 current_profil = row['profil']
                 current_start = row['start_date']
-        
+
         # Une fois toutes les lignes parcourues, on ferme la dernière période
         # On prend la end_date de la dernière ligne du groupe
         last_end = df_group.loc[len(df_group)-1, 'end_date']
@@ -698,7 +710,7 @@ def __(pd, s507_df):
             'start_date': current_start,
             'end_date': last_end
         })
-        
+
         return pd.DataFrame(merged_rows)
     profils_temporalises = s507_df.groupby('pdl', group_keys=False).apply(merge_profiles_in_group).reset_index(drop=True)
     profils_temporalises
