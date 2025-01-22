@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.9.34"
 app = marimo.App(width="medium")
 
 
@@ -93,9 +93,14 @@ def __(taxes):
 def __(acci, base, capa, equi, prod):
     couts = base.copy()
     couts['var_kWh'] = (equi.value + capa.value + prod.value + acci.value) / 1000
+
     couts['cout_var'] = couts['var_kWh']*couts['BASE'] + couts['turpe_var']
     couts['cout_fix'] = couts['turpe_fix'] + couts['cta']
     couts['cout_total_periode'] = couts['cout_var'] + couts['cout_fix']
+
+    couts['cout_var_proj'] = couts['var_kWh']*couts['BASE'] + couts['turpe_var_proj']
+    couts['cout_fix_proj'] = couts['turpe_fix_proj'] + couts['cta']
+    couts['cout_total_periode_proj'] = couts['cout_var_proj'] + couts['cout_fix_proj']
     couts
     return (couts,)
 
@@ -154,7 +159,7 @@ def __(OdooConnector, env):
 
 
 @app.cell
-def __(couts, total_fix_facture, total_var_facture):
+def __(couts, total_fix_facture, total_var_facture, var_trv):
     marge = couts[(couts['lisse']==False) & (couts['j'] >=30)].copy()
     marge = marge.merge(total_var_facture, left_on='Abonnement', right_on='invoice_origin', how='left')
     marge = marge.merge(total_fix_facture, left_on='Abonnement', right_on='invoice_origin', how='left')
@@ -169,7 +174,17 @@ def __(couts, total_fix_facture, total_var_facture):
     marge['marge_fix_mois'] = marge['marge_fix_jour'] * 30
 
     marge['marge_mois'] = marge['marge_var_mois'] + marge['marge_fix_mois']
-    #marge.columns = [m for m in marge.columns if m != 'Abonnement'] + ['Abonnement']
+
+    marge['marge_var_proj'] = marge['fact_var']*(1+var_trv.value/100) - marge['cout_var_proj']
+    marge['marge_var_jour_proj'] = marge['marge_var_proj'] / marge['j']
+    marge['marge_var_mois_proj'] = marge['marge_var_jour_proj'] * 30
+    marge['marge_var_kwh_proj'] = marge['marge_var_proj'] / marge["BASE"]
+
+    marge['marge_fix_proj'] = marge['fact_fix'] - marge['cout_fix_proj']
+    marge['marge_fix_jour_proj'] = marge['marge_fix_proj'] / marge['j']
+    marge['marge_fix_mois_proj'] = marge['marge_fix_jour_proj'] * 30
+
+    marge['marge_mois_proj'] = marge['marge_var_mois_proj'] + marge['marge_fix_mois_proj']
 
     _columns = [col for col in marge.columns if col != 'Abonnement'] + ['Abonnement']
     marge = marge[_columns]
@@ -178,23 +193,39 @@ def __(couts, total_fix_facture, total_var_facture):
 
 
 @app.cell
-def __(marge):
-    marge['marge_mois'].mean(), marge['marge_mois'].median()
-    return
+def __(marge, pd):
+    _data = {
+        'Metric': ['Mean', 'Median'],
+        'marge part fixe': [marge['marge_fix_mois_proj'].mean(), marge['marge_fix_mois_proj'].median()],
+        'marge part variable': [marge['marge_var_mois_proj'].mean(), marge['marge_var_mois_proj'].median()],
+        'marge par kWh': [marge['marge_var_kwh_proj'].mean(), marge['marge_var_kwh_proj'].median()],
+        'marge mensuelle': [marge['marge_mois_proj'].mean(), marge['marge_mois_proj'].median()],
+    }
+    summary_df = pd.DataFrame(_data).round(3)
+
+    summary_df.set_index('Metric').T
+    return (summary_df,)
 
 
 @app.cell(hide_code=True)
 def __(marge, mo):
     import altair as alt
     # Créer un histogramme de la distribution de la marge mensuelle
-    _chart = alt.Chart(marge).mark_bar().encode(
+    _reel = alt.Chart(marge).mark_bar().encode(
         alt.X('marge_mois', bin=alt.Bin(maxbins=20), title='Marge Mensuelle'),
-        alt.Y('count()', title='Nombre de lignes')
+        alt.Y('count()', title='Nombre de souscriptions')
     ).properties(
         title='Distribution de la Marge Mensuelle'
     )
 
-    mo.ui.altair_chart(_chart)
+    _proj = alt.Chart(marge).mark_bar().encode(
+        alt.X('marge_mois_proj', bin=alt.Bin(maxbins=20), title='Marge Mensuelle'),
+        alt.Y('count()', title='Nombre de souscriptions')
+    ).properties(
+        title='Distribution de la Marge Mensuelle'
+    )
+    _combined_chart = alt.vconcat(_reel, _proj)
+    mo.ui.altair_chart(_combined_chart)
     return (alt,)
 
 
@@ -242,15 +273,19 @@ def __(acci, capa, equi, mo, prod):
 def __(mo):
     equi = mo.ui.slider(start=1, stop=3, step=.01, label="Equilibrage (€/MWh)", value=1.85)
     capa = mo.ui.slider(start=2, stop=10, step=.01, label="Capacité    (€/MWh)", value=4)
-    prod = mo.ui.slider(start=70, stop=140, step=1, label="Production  (€/MWh)", value=100)
-    acci = mo.ui.slider(start=15, stop=50, step=.01, label="Accise      (€/MWh)", value=21)
+    prod = mo.ui.slider(start=50, stop=140, step=1, label="Production  (€/MWh)", value=100)
+    acci = mo.ui.slider(start=15, stop=50, step=.01, label="Accise      (€/MWh)", value=33.7)
+    aug_turpe = mo.ui.slider(start=-20, stop=30, step=1, label="Augmentation du Turpe (%)", value=7)
+    var_trv = mo.ui.slider(start=-20, stop=10, step=1, label="Variation du TRVE (%)", value=-15)
     mo.vstack([
         equi,
         capa,
         prod,
-        acci
+        acci,
+        aug_turpe,
+        var_trv
     ])
-    return acci, capa, equi, prod
+    return acci, aug_turpe, capa, equi, prod, var_trv
 
 
 @app.cell
@@ -484,7 +519,7 @@ def __(mo, np, pd):
     # Création du DataFrame avec les données du tableau
     _b = {
         "b": ["CU4", "CUST", "MU4", "MUDT", "LU", "CU4 – autoproduction collective", "MU4 – autoproduction collective"],
-        "€/kVA/an": [9.00, 9.96, 10.56, 12.24, 81.24, 9.00, 10.68]
+        "€/kVA/an": [9.36, 10.44, 11.04, 12.72, 84.96, 9.36, 11.16]
     }
     b = pd.DataFrame(_b).set_index('b')
     _c = {
@@ -496,31 +531,31 @@ def __(mo, np, pd):
             "MU 4 - autoproduction collective, part alloproduite"
         ],
         "HPH": [
-            6.67, 0, 6.12, 0, 0,
-            1.64, 7.23, 1.64, 6.60
+            6.96, 0, 6.39, 0, 0,
+            1.72, 7.56, 1.72, 6.88
         ],
         "HCH": [
-            4.56, 0, 4.24, 0, 0,
-            1.29, 4.42, 1.29, 4.23
+            4.76, 0, 4.43, 0, 0,
+            1.34, 4.62, 1.34, 4.41
         ],
         "HPB": [
-            1.43, 0, 1.39, 0, 0,
-            0.77, 2.29, 0.77, 2.22
+            1.48, 0, 1.46, 0, 0,
+            0.81, 2.39, 0.81, 2.32
         ],
         "HCB": [
-            0.88, 0, 0.87, 0, 0,
-            0.37, 0.86, 0.37, 0.86
+            0.92, 0, 0.91, 0, 0,
+            0.39, 0.9, 0.39, 0.9
         ],
         "HP": [
-            0, 0, 0, 4.47, 0,
+            0, 0, 0, 4.68, 0,
             0, 0, 0, 0
         ],
         "HC": [
-            0, 0, 0, 3.16, 0,
+            0, 0, 0, 3.31, 0,
             0, 0, 0, 0
         ],
         "BASE": [
-            0, 4.37, 0, 0, 1.10,
+            0, 4.58, 0, 0, 1.15,
             0, 0, 0, 0
         ]
     }
@@ -533,8 +568,8 @@ def __(mo, np, pd):
     P = [3, 6, 9, 12, 15, 18, 36]
 
     # Constantes cg et cc
-    cg = 15.48
-    cc = 19.9
+    cg = 16.20
+    cc = 20.88
 
     # Créer la matrice selon la formule (cg + cc + b * P) / 366
     matrice = (cg + cc + b["€/kVA/an"].values[:, np.newaxis] * P) / 366
@@ -576,7 +611,7 @@ def __(mo, np, pd):
 
 
 @app.cell(hide_code=True)
-def calcul_taxes(b, c, cc, cg, consos, env, np, tcta):
+def calcul_taxes(aug_turpe, b, c, cc, cg, consos, env, np, tcta):
     taxes = consos.copy()
     # Calcul part fixe
     def _get_tarif(row):
@@ -605,6 +640,9 @@ def calcul_taxes(b, c, cc, cg, consos, env, np, tcta):
             return 0
     taxes['turpe_var'] = taxes.apply(_calc_sum_ponderated, axis=1)
     taxes['turpe'] = taxes['turpe_fix'] + taxes['turpe_var']
+    taxes['turpe_var_proj'] = taxes['turpe_var'] * (1 + aug_turpe.value / 100)
+    taxes['turpe_fix_proj'] = taxes['turpe_fix'] * (1 + aug_turpe.value / 100)
+    taxes['turpe_proj'] = taxes['turpe_var_proj'] + taxes['turpe_fix_proj']
 
     from stationreappropriation.odoo import get_valid_subscriptions_pdl
     subs = get_valid_subscriptions_pdl(env)
