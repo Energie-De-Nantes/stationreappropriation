@@ -80,17 +80,9 @@ def _(PARIS_TZ, deb, fin, flux_path, pd, process_flux):
     c15 = process_flux('C15', flux_path / 'C15')
     c15['Date_Evenement'] = pd.to_datetime(c15['Date_Evenement'], utc=True).dt.tz_convert(PARIS_TZ)
     c15['Date_Releve'] = pd.to_datetime(c15['Date_Releve'], utc=True).dt.tz_convert(PARIS_TZ)
-    # _filtered_c15 = c15[c15['Type_Evenement']=='CONTRAT'].copy()
-    # _filtered_c15 = _filtered_c15[_filtered_c15['Date_Evenement'] <= fin]
-
-    # c15_finperiode = _filtered_c15.sort_values(by='Date_Evenement', ascending=False).drop_duplicates(subset=['pdl'], keep='first')
 
     _mask = (c15['Date_Evenement'] >= deb) & (c15['Date_Evenement'] <= fin)
     c15_periode = c15[_mask]
-
-    #c15_in_period = c15_period[c15_period['Evenement_Declencheur'].isin(['MES', 'PMES', 'CFNE'])]
-
-    # c15_out_period = c15_period[c15_period['Evenement_Declencheur'].isin(['RES', 'CFNS'])]
     return c15, c15_periode
 
 
@@ -149,25 +141,31 @@ def _(indexes, pd):
 
 
 @app.cell
-def _(energies):
-    energies[energies['pdl'] == '14266280688020']
-    return
-
-
-@app.cell
 def _(deb, energies, fin):
     from stationreappropriation.moteur_metier.turpe import get_applicable_rules, compute_turpe
 
     rules = get_applicable_rules(deb, fin)
-    turpe = compute_turpe(entries=energies, rules=rules)
+    turpe = compute_turpe(entries=energies, rules=rules).round(3)
     turpe
     return compute_turpe, get_applicable_rules, rules, turpe
 
 
 @app.cell
-def _(turpe):
-    turpe.groupby('Ref_Situation_Contractuelle').sum()
-    return
+def _(pd, turpe):
+    def custom_agg(df):
+        agg_dict = {}
+        for col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                agg_dict[col] = "sum"
+            else:
+                agg_dict[col] = "first"  # Prend la première valeur
+        return agg_dict
+    _to_drop = ['turpe_fixe_annuel', 'turpe_fixe_j', 'cg', 'cc', 'b', 'CS_fixe'] + [col for col in turpe.columns if col.endswith('_rule')]
+    # Appliquer le groupby avec la fonction d'agrégation conditionnelle
+    grouped = turpe.groupby("Ref_Situation_Contractuelle").agg(custom_agg(turpe))
+    grouped.drop(columns=_to_drop)
+
+    return custom_agg, grouped
 
 
 @app.cell
