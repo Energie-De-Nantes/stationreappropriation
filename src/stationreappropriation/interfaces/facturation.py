@@ -698,7 +698,7 @@ def __(merged_data, mo):
 
 @app.cell(hide_code=True)
 def __(merged_data, mo, pd):
-    update_conso_df = merged_data[(~merged_data['x_lisse']) & merged_data['something_wrong']==False].copy()
+    update_conso_df = merged_data[(~merged_data['x_lisse']) & (merged_data['something_wrong']==False)].copy()
     lines = []
     _hc = pd.DataFrame()
     _hp = pd.DataFrame()
