@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.9.34"
 app = marimo.App(width="medium")
 
 
@@ -50,6 +50,20 @@ def __():
     )
 
 
+@app.cell
+def __(env, pd):
+    from stationreappropriation.odoo import get_pdls
+    pdls = get_pdls(env)
+    _local = pd.DataFrame({
+        'sale.order_id': [0],  # Exemple d'identifiant de commande
+        'pdl': ['14295224261882']           # Exemple de PDL
+    })
+
+    # Ajouter la nouvelle ligne à la dataframe avec pd.concat
+    pdls = pd.concat([pdls, _local], ignore_index=True)
+    return get_pdls, pdls
+
+
 @app.cell(hide_code=True)
 def __(env, flux_path, mo):
     from stationreappropriation.marimo_utils import download_with_marimo_progress as _dl
@@ -90,14 +104,10 @@ def __(end_date_picker, pd, start_date_picker):
 @app.cell(hide_code=True)
 def __(np, taxes):
     conditions = [
-        taxes['Date_Derniere_Modification_FTA'] >= taxes['d_date'],
-        taxes['Date_Derniere_Modification_FTA'] <= taxes['f_date'],
-    ]
-
-    conditions = [
         taxes['Date_Evenement'] >= taxes['d_date'],
         taxes['Date_Evenement'] <= taxes['f_date'],
-        taxes['Evenement_Declencheur'].isin(['MCT', 'MDCTR'])
+        taxes['Evenement_Declencheur'].isin(['MCT', 'MDCTR']),
+        taxes['Marque'] == 'EDN'
     ]
 
     _mask = np.logical_and.reduce(conditions)
@@ -132,7 +142,7 @@ def __(c15_finperiode):
 def __(erreurs, mo, taxes):
     mo.vstack([mo.accordion(erreurs),
                mo.md('Tableau récapitulatif'),
-               taxes,
+               taxes[taxes['Marque']=='EDN'],
               ])
     return
 
@@ -333,15 +343,19 @@ def calcul_consos(DataFrame, get_consumption_names, indexes, np, pd):
         df['missing_data'] = df[['HPH', 'HPB', 'HCH', 
                 'HCB', 'BASE', 'HP',
                 'HC']].isna().all(axis=1)
-        df['BASE'] = np.where(
-                df['missing_data'],
-                np.nan,
-                df[['HPH', 'HPB', 'HCH', 
-                'HCB', 'BASE', 'HP', 
-                'HC']].sum(axis=1)
-            )
-        df['HP'] = df[['HPH', 'HPB', 'HP']].sum(axis=1)
-        df['HC'] = df[['HCH', 'HCB', 'HC']].sum(axis=1)
+        # df['BASE'] = np.where(
+        #         df['missing_data'],
+        #         np.nan,
+        #         df[['HPH', 'HPB', 'HCH', 
+        #         'HCB', 'BASE', 'HP', 
+        #         'HC']].sum(axis=1)
+        #     )
+        # Calculer HP et HC en prenant la somme des colonnes correspondantes
+        df['HP'] = df[['HPH', 'HPB', 'HP']].sum(axis=1, min_count=1)
+        df['HC'] = df[['HCH', 'HCB', 'HC']].sum(axis=1, min_count=1)
+
+        # Calculer BASE uniquement là où BASE est NaN
+        df.loc[df['BASE'].isna(), 'BASE'] = df[['HP', 'HC']].sum(axis=1, min_count=1)
         return df.copy()
     consos = _compute_missing_sums(consos)
     consos = consos[['pdl', 
@@ -360,6 +374,7 @@ def calcul_consos(DataFrame, get_consumption_names, indexes, np, pd):
                      'Date_Evenement',
                      'f_date',]+_cols]
     consos['j'] = (pd.to_datetime(consos['f_date']) - pd.to_datetime(consos['d_date'])).dt.days.clip(lower=0)
+    consos
     return (consos,)
 
 
@@ -460,7 +475,7 @@ def __(mo, np, pd):
 
 
 @app.cell(hide_code=True)
-def calcul_taxes(b, c, cc, cg, consos, env, np, tcta):
+def calcul_taxes(b, c, cc, cg, consos, np, pdls, tcta):
     taxes = consos.copy()
     # Calcul part fixe
     def _get_tarif(row):
@@ -490,12 +505,13 @@ def calcul_taxes(b, c, cc, cg, consos, env, np, tcta):
     taxes['turpe_var'] = taxes.apply(_calc_sum_ponderated, axis=1)
     taxes['turpe'] = taxes['turpe_fix'] + taxes['turpe_var']
 
-    from stationreappropriation.odoo import get_pdls
+    # from stationreappropriation.odoo import get_pdls
 
-    pdls = get_pdls(env)
+    # pdls = get_pdls(env)
     taxes['Marque'] = taxes['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'EL')
+    taxes = taxes.round(2)
     taxes
-    return get_pdls, pdls, taxes
+    return (taxes,)
 
 
 @app.cell(hide_code=True)
@@ -568,6 +584,12 @@ def __(draft_orders, end_date_picker, start_date_picker, taxes):
     # merged_data.loc[_quickfix_mask, 'j'] = 30.42
     merged_data
     return days_in_month, merged_data
+
+
+@app.cell
+def __(merged_data):
+    merged_data[(merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)]
+    return
 
 
 @app.cell
@@ -676,29 +698,32 @@ def __(merged_data, mo):
 
 @app.cell(hide_code=True)
 def __(merged_data, mo, pd):
-    update_conso_df = merged_data[~merged_data['x_lisse']].copy()
-    update_conso_df
+    update_conso_df = merged_data[(~merged_data['x_lisse']) & merged_data['something_wrong']==False].copy()
     lines = []
     _hc = pd.DataFrame()
     _hp = pd.DataFrame()
     _base = pd.DataFrame()
     if 'line_id_HC' in update_conso_df.columns:
         _hc = update_conso_df[update_conso_df['line_id_HC'].notna()][['line_id_HC', 'HC']]
+        _hc = _hc.dropna(subset=['HC'])
         _hc.rename(columns={'line_id_HC': 'id', 'HC': 'quantity'}, inplace=True)
         lines += _hc.to_dict(orient='records')
 
     if 'line_id_HP' in update_conso_df.columns:
         _hp = update_conso_df[update_conso_df['line_id_HP'].notna()][['line_id_HP', 'HP']]
+        _hp = _hp.dropna(subset=['HP'])
         _hp.rename(columns={'line_id_HP': 'id', 'HP': 'quantity'}, inplace=True)
         lines += _hp.to_dict(orient='records')
 
     if 'line_id_Base' in update_conso_df.columns:
         _base = update_conso_df[update_conso_df['line_id_Base'].notna()][['line_id_Base', 'BASE']]
+        _base = _base.dropna(subset=['BASE'])
         _base.rename(columns={'line_id_Base': 'id', 'BASE': 'quantity'}, inplace=True)
         lines += _base.to_dict(orient='records')
 
     do_update_qty = (~(merged_data['x_lisse'] == True) | (merged_data['update_dates'] == True))
     _abo = merged_data[do_update_qty][['line_id_Abonnements', 'j']]
+    _abo = _abo.dropna(subset=['line_id_Abonnements', 'j'])
     _abo.rename(columns={'line_id_Abonnements': 'id', 'j': 'quantity'}, inplace=True)
     lines += _abo.to_dict(orient='records')
     mo.accordion({
@@ -733,7 +758,6 @@ def __(
     OdooConnector,
     env,
     invoices,
-    lines,
     mo,
     orders,
     red_button,
@@ -741,11 +765,19 @@ def __(
 ):
     mo.stop(not red_button.value)
 
-    with OdooConnector(config=env, sim=safety_switch.value) as odoo:
-        odoo.update('sale.order', orders)
-        odoo.update('account.move', invoices)
-        odoo.update('account.move.line', lines)
-    return (odoo,)
+    with OdooConnector(config=env, sim=safety_switch.value) as _odoo:
+        _odoo.update('sale.order', orders)
+        _odoo.update('account.move', invoices)
+        # _odoo.update('account.move.line', lines)
+    return
+
+
+@app.cell
+def __(OdooConnector, env, lines, mo, red_button, safety_switch):
+    mo.stop(not red_button.value)
+    with OdooConnector(config=env, sim=safety_switch.value) as _odoo:
+        _odoo.update("account.move.line", lines)
+    return
 
 
 if __name__ == "__main__":
