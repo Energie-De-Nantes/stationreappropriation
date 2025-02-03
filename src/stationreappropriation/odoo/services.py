@@ -84,34 +84,46 @@ def _add_cat_fields(config: dict, data: DataFrame, fields: list[str])-> DataFram
     with OdooConnector(config=config, sim=True) as odoo:
         # On explose les lignes de factures en lignes sépsarées  
         df_exploded = data.explode('invoice_line_ids')
-
+        df_exploded.to_clipboard()
+        print(len(df_exploded['invoice_line_ids']))
         # On récupère les id produits de chaque ligne de facture
         lines = odoo.read('account.move.line', 
                           ids=df_exploded['invoice_line_ids'].to_list(),
-                          fields=['product_id'])
+                          fields=['id', 'product_id'])
         
-        # On récupère les catégories de chaque produit
-        prods_id = _get_many2one_id_list(lines['product_id'])
-        prods = odoo.read('product.product',
-                          ids=prods_id,
-                          fields=['categ_id'])
+        lines = lines.dropna(subset=['product_id'])
+        lines['product_id'] = _get_many2one_id_list(lines['product_id'])
 
-        cat_serie = _get_many2one_text_serie(prods['categ_id'])
-        df_exploded['cat'] = cat_serie.apply(lambda x: x.split(' ')[-1]).astype(str).values
+        # On récupère les catégories de chaque produit
+        prods = odoo.read('product.product',
+                          ids=lines['product_id'].drop_duplicates().to_list(),
+                          fields=['id', 'categ_id'])
+        prods['cat'] = _get_many2one_text_serie(prods['categ_id']).apply(lambda x: x.split(' ')[-1]).astype(str)
+
+        # On fusionne lines et prods
+        lines = lines.merge(prods[['product.product_id', 'cat']], left_on='product_id', right_on='product.product_id', how='left')
         
+        # On fusionne dans df_exploded, en supprimant les lignes de df_exploded qui ne correspondent pas a un produit. 
+        df_exploded = df_exploded.merge(lines[['account.move.line_id', 'cat']], left_on='invoice_line_ids', right_on='account.move.line_id', how='left')
+        df_exploded.drop(columns=['invoice_line_ids'], inplace=True)
+        df_exploded.dropna(subset=['account.move_id'], inplace=True)
+        df_exploded['account.move_id'] = df_exploded['account.move_id'].astype('Int64')
+        df_exploded['account.move.line_id'] = df_exploded['account.move.line_id'].astype('Int64')
+
         is_pe = df_exploded['cat'] == 'Prestation-Enedis'
 
         # Pour les catégories autres que 'ALL', pivotons normalement
-        df_pivot = df_exploded[~is_pe].pivot_table(index='account.move_id', columns='cat', values='invoice_line_ids').reset_index()
+        df_pivot = df_exploded[~is_pe].pivot_table(index='account.move_id', columns='cat', values='account.move.line_id').reset_index()
         df_pivot.columns = ['account.move_id'] + [f'line_id_{x}' for x in df_pivot.columns if x != 'account.move_id']
-        
+
         # Convert float columns back to int
         for col in df_pivot.columns:
             if col.startswith('line_id_'):
+                print(col)
                 df_pivot[col] = df_pivot[col].astype('Int64')
         
         # Pour 'ALL', agrégeons les valeurs dans une liste
-        df_all = df_exploded[is_pe].groupby('account.move_id')['invoice_line_ids'].apply(list).reset_index()
+        df_all = df_exploded[is_pe].groupby('account.move_id')['account.move.line_id'].apply(list).reset_index()
         df_all.columns = ['account.move_id', 'line_id_Prestation-Enedis']
 
         # Fusionnons d'abord les DataFrames pivotés normalement et 'ALL'
