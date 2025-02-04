@@ -327,6 +327,7 @@ def _(deb, energies, fin):
 
 @app.cell
 def _(pd, turpe):
+    from stationreappropriation.moteur_metier.formattage import validation
     def custom_agg(df):
         agg_dict = {}
         for col in df.columns:
@@ -338,9 +339,9 @@ def _(pd, turpe):
     _to_drop = ['turpe_fixe_annuel', 'turpe_fixe_j', 'cg', 'cc', 'b', 'CS_fixe'] + [col for col in turpe.columns if col.endswith('_rule')]
     # Appliquer le groupby avec la fonction d'agrégation conditionnelle
     grouped = turpe.groupby("Ref_Situation_Contractuelle").agg(custom_agg(turpe))
-    grouped = grouped.drop(columns=_to_drop).round(2)
+    grouped = validation(grouped.drop(columns=_to_drop).round(2))
     grouped
-    return custom_agg, grouped
+    return custom_agg, grouped, validation
 
 
 @app.cell(hide_code=True)
