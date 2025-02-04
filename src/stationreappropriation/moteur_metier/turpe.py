@@ -78,14 +78,14 @@ def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
 
     merged["turpe_var"] = merged[['turpe_'+col for col in conso_cols]].sum(axis=1, min_count=1)
 
-    columns_to_drop = [col for col in merged.columns if col.endswith('_entry')]+['end']
-    columns_to_rename = {'start': 'Version_Turpe'}
     
-    merged = (
-        merged
-        .drop(columns=columns_to_drop)
-        .rename(columns=columns_to_rename)
-    )
+    columns_to_rename = {'start': 'Version_Turpe'} | {c+'_entry': c for c in conso_cols}
+    merged = merged.rename(columns=columns_to_rename)
+    
+    columns_to_drop = [col for col in merged.columns if col.endswith('_entry')]+['end']
+
+    merged = merged.drop(columns=columns_to_drop)
+
     merged['Version_Turpe'] = merged['Version_Turpe'].dt.date
     return merged
 

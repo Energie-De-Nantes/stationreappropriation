@@ -228,13 +228,14 @@ def calcul_energie(df: DataFrame) -> DataFrame:
     # Calcul de la consommation d'énergie
     r = df.copy()
 
-    cadrans = ['HP', 'HC', 'HCH', 'HPH', 'HPB', 'HCB', 'BASE']
+    cadrans = ['HPH', 'HPB', 'HCH', 'HCB', 'HP', 'HC',  'BASE']
+    df['releve_manquant'] = df[['source_releve_fin', 'source_releve_deb']].isna().any(axis=1)
     for c in cadrans:
         colonne_deb = f"{c}_deb"
         colonne_fin = f"{c}_fin"
         if colonne_deb in r.columns and colonne_fin in r.columns:
             # Vérifie que les deux sources de relevé sont non nulles
-            masque_valide = r['source_releve_deb'].notna() & r['source_releve_fin'].notna()
+            masque_valide = ~df['releve_manquant']
             diff = r.loc[masque_valide, colonne_fin] - r.loc[masque_valide, colonne_deb]
             
             pdls_negatifs = r.loc[masque_valide][diff < 0]['pdl'].tolist()
@@ -249,6 +250,13 @@ def calcul_energie(df: DataFrame) -> DataFrame:
             
     # Calcul du nombre de jours entre les deux relevés
     r['j'] = (r['Date_Releve_fin'] - r['Date_Releve_deb']).dt.days
+
+    # Calculer HP et HC en prenant la somme des colonnes correspondantes
+    r['HP'] = r[['HPH', 'HPB', 'HP']].sum(axis=1, min_count=1)
+    r['HC'] = r[['HCH', 'HCB', 'HC']].sum(axis=1, min_count=1)
+
+    # Calculer BASE uniquement là où BASE est NaN
+    r.loc[r['BASE'].isna(), 'BASE'] = r[['HP', 'HC']].sum(axis=1, min_count=1)
     
     return r
     
