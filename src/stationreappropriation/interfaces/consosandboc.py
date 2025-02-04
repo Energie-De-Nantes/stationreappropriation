@@ -281,6 +281,13 @@ def _(alors, deb, fin, r151):
     return ajout_R151, indexes
 
 
+@app.cell
+def __(deb, fin, indexes):
+    from stationreappropriation.moteur_metier.consos import ajout_par_defaut
+    complet = ajout_par_defaut(deb, fin, indexes)
+    return ajout_par_defaut, complet
+
+
 @app.cell(hide_code=True)
 def __(mo):
     mo.md(r"""### Calcul des energies par différence d'index""")
@@ -288,10 +295,10 @@ def __(mo):
 
 
 @app.cell
-def _(indexes, pd):
+def _(complet, pd):
     from stationreappropriation.moteur_metier.consos import calcul_energie
 
-    energies = calcul_energie(indexes)
+    energies = calcul_energie(complet)
     energies['Puissance_Souscrite'] = pd.to_numeric(energies['Puissance_Souscrite'])
     energies
     return calcul_energie, energies
@@ -324,7 +331,7 @@ def _(pd, turpe):
         agg_dict = {}
         for col in df.columns:
             if pd.api.types.is_numeric_dtype(df[col]):
-                agg_dict[col] = "sum"
+                agg_dict[col] = lambda x: x.sum(min_count=1)
             else:
                 agg_dict[col] = "first"  # Prend la première valeur
         return agg_dict
