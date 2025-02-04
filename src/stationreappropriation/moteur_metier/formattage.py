@@ -17,3 +17,7 @@ def fusion_des_sous_periode(df: DataFrame)-> DataFrame:
         return agg_dict
     # Appliquer le groupby avec la fonction d'agrégation conditionnelle
     return df.groupby("Ref_Situation_Contractuelle").agg(custom_agg(df))
+
+def validation(df: DataFrame)-> DataFrame:
+    df['releve_manquant'] = df[['source_releve_fin', 'source_releve_deb']].isna().any(axis=1)
+    return df
