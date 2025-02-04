@@ -1,7 +1,7 @@
 import pandas as pd
 from .consos import qui_quoi_quand, ajout_R151, calcul_energie
 from .turpe import get_applicable_rules, compute_turpe
-
+from .formattage import supprimer_colonnes, fusion_des_sous_periode
 
 def energies_et_taxes(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r151: pd.DataFrame) -> pd.DataFrame:
     """
@@ -13,6 +13,6 @@ def energies_et_taxes(deb: pd.Timestamp, fin: pd.Timestamp, c15: pd.DataFrame, r
     energies = calcul_energie(indexes)
     energies['Puissance_Souscrite'] = pd.to_numeric(energies['Puissance_Souscrite'])
     rules = get_applicable_rules(deb, fin)
-    turpe = compute_turpe(entries=energies, rules=rules).round(2)
-
-    return turpe
+    turpe = compute_turpe(entries=energies, rules=rules)
+    final = fusion_des_sous_periode(turpe)
+    return supprimer_colonnes(final).round(2)
