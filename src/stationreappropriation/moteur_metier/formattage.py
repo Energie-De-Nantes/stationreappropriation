@@ -11,7 +11,7 @@ def fusion_des_sous_periode(df: DataFrame)-> DataFrame:
         agg_dict = {}
         for col in df.columns:
             if pd.api.types.is_numeric_dtype(df[col]):
-                agg_dict[col] = "sum"
+                agg_dict[col] = lambda x: x.sum(min_count=1)
             else:
                 agg_dict[col] = "first"  # Prend la première valeur
         return agg_dict
