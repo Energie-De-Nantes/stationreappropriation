@@ -76,7 +76,7 @@ def compute_turpe(entries: pd.DataFrame, rules: pd.DataFrame) -> pd.DataFrame:
 
     merged["turpe_fixe"] = merged["turpe_fixe_j"] * merged["j"]
 
-    merged["turpe_var"] = merged[['turpe_'+col for col in conso_cols]].sum(axis=1)
+    merged["turpe_var"] = merged[['turpe_'+col for col in conso_cols]].sum(axis=1, min_count=1)
 
     columns_to_drop = [col for col in merged.columns if col.endswith('_entry')]+['end']
     columns_to_rename = {'start': 'Version_Turpe'}
