@@ -82,7 +82,7 @@ def _add_cat_fields(config: dict, data: DataFrame, fields: list[str])-> DataFram
     if 'invoice_line_ids' not in data.columns:
         raise ValueError(f'No invoice_line_ids found in {data.columns}')
     with OdooConnector(config=config, sim=True) as odoo:
-        # On explose les lignes de factures en lignes sépsarées  
+        # On explose les lignes de factures en lignes sépsarées, aka on duplique chaque ligne autant de fois qu'il y a des valeurs dans la liste 'invoice_line_ids'  
         df_exploded = data.explode('invoice_line_ids')
         df_exploded.to_clipboard()
         print(len(df_exploded['invoice_line_ids']))
@@ -94,7 +94,7 @@ def _add_cat_fields(config: dict, data: DataFrame, fields: list[str])-> DataFram
         lines = lines.dropna(subset=['product_id'])
         lines['product_id'] = _get_many2one_id_list(lines['product_id'])
 
-        # On récupère les catégories de chaque produit
+        # On récupère les catégories de chaque produit unique
         prods = odoo.read('product.product',
                           ids=lines['product_id'].drop_duplicates().to_list(),
                           fields=['id', 'categ_id'])
@@ -112,7 +112,7 @@ def _add_cat_fields(config: dict, data: DataFrame, fields: list[str])-> DataFram
 
         is_pe = df_exploded['cat'] == 'Prestation-Enedis'
 
-        # Pour les catégories autres que 'ALL', pivotons normalement
+        # Pour les catégories autres que 'Prestation-Enedis', pivotons normalement aka ça va créer des colonnes dédiées pour chaque catégorie
         df_pivot = df_exploded[~is_pe].pivot_table(index='account.move_id', columns='cat', values='account.move.line_id').reset_index()
         df_pivot.columns = ['account.move_id'] + [f'line_id_{x}' for x in df_pivot.columns if x != 'account.move_id']
 
@@ -122,11 +122,11 @@ def _add_cat_fields(config: dict, data: DataFrame, fields: list[str])-> DataFram
                 print(col)
                 df_pivot[col] = df_pivot[col].astype('Int64')
         
-        # Pour 'ALL', agrégeons les valeurs dans une liste
+        # Pour 'Prestation-Enedis', agrégeons les valeurs dans une liste (il peux y en avoir plusieurs, contrairement aux autres catégories)
         df_all = df_exploded[is_pe].groupby('account.move_id')['account.move.line_id'].apply(list).reset_index()
         df_all.columns = ['account.move_id', 'line_id_Prestation-Enedis']
 
-        # Fusionnons d'abord les DataFrames pivotés normalement et 'ALL'
+        # Fusionnons d'abord les DataFrames pivotés normalement et 'Prestation-Enedis'
         df_merged = pd.merge(df_pivot, df_all, on='account.move_id', how='left')
 
         # Ensuite, on fusionne le résultat avec le DataFrame original
