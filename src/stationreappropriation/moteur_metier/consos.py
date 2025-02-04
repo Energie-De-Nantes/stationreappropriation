@@ -136,21 +136,18 @@ def diviser_lignes_mct(base_df: pd.DataFrame, mct_df: pd.DataFrame, colonnes_rel
         lignes_apres_mct
     ])
 
-def ajout_par_defaut(deb: pd.Timestamp, fin: pd.Timestamp, source: str, df: DataFrame) -> DataFrame:
+def ajout_par_defaut(deb: pd.Timestamp, fin: pd.Timestamp, df: DataFrame) -> DataFrame:
     """
     Ajoute les valeurs par défaut pour les colonnes 'Date_Releve_deb', 'Date_Releve_fin', 'source_releve_deb', et 'source_releve_fin'.
     Args:
         df (DataFrame): Le DataFrame à traiter.
         deb (pd.Timestamp): La date de début par défaut.
         fin (pd.Timestamp): La date de fin par défaut.
-        source (str): La source par défaut.
     Returns:
         DataFrame: Le DataFrame avec les valeurs par défaut ajoutées.
     """
     df['Date_Releve_deb'] = df['Date_Releve_deb'].fillna(deb)
     df['Date_Releve_fin'] = df['Date_Releve_fin'].fillna(fin)
-    df['source_releve_deb'] = df['source_releve_deb'].fillna(source)
-    df['source_releve_fin'] = df['source_releve_fin'].fillna(source)
     return df
 
 def calcul_nb_jours(df: DataFrame) -> DataFrame:
@@ -250,9 +247,8 @@ def calcul_energie(df: DataFrame) -> DataFrame:
             # Applique le calcul uniquement où mask_valide est True
             r.loc[masque_valide, c] = diff
             
-            # Calcul du nombre de jours entre les deux relevés
-            r['j'] = pd.NA
-            r.loc[masque_valide,'j'] = (r.loc[masque_valide,'Date_Releve_fin'] - r.loc[masque_valide,'Date_Releve_deb']).dt.days
+    # Calcul du nombre de jours entre les deux relevés
+    r['j'] = (r['Date_Releve_fin'] - r['Date_Releve_deb']).dt.days
     
     return r
     
