@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.30"
+__generated_with = "0.9.34"
 app = marimo.App(width="medium")
 
 
@@ -75,13 +75,19 @@ def __(gen_previous_month_boundaries, mo, radio):
 
 
 @app.cell
-def __(mo, somme_f12, somme_f15):
-    mo.md(
-    f"""
-        F12 ZEL = {somme_f12}/n
-        F15 ZEL = {somme_f15}/n
-        Total = {somme_f12 + somme_f15}
-    """)
+def __(lignes_f12, lignes_f15):
+
+
+    # Fusionner
+    recap = lignes_f15.merge(lignes_f12, on='Taux_TVA_Applicable', how='outer', suffixes=('_f15', '_f12'))
+    recap['total'] = recap[[c for c in recap.columns if c.startswith('Montant_HT')]].sum(axis=1, min_count=1)
+    recap
+    return (recap,)
+
+
+@app.cell
+def __(mo):
+    mo.md(r"""# Détails""")
     return
 
 
@@ -96,21 +102,15 @@ def __(env, mo, pd):
     from stationreappropriation.odoo import get_pdls
     pdls = get_pdls(env)
     _local = pd.DataFrame({
-        'sale.order_id': [0],  # Exemple d'identifiant de commande
-        'pdl': ['14295224261882']           # Exemple de PDL
+        'sale.order_id': [0, 0, 0],  # Exemple d'identifiant de commande
+        'pdl': ['14295224261882', '50070117855585', '50000508594660']           # Exemple de PDL
     })
 
     # Ajouter la nouvelle ligne à la dataframe avec pd.concat
     pdls = pd.concat([pdls, _local], ignore_index=True)
-    mo.vstack()
+    # mo.vstack()
     mo.md(f"""## Liste des PDLs d'EDN """)
     return get_pdls, pdls
-
-
-@app.cell
-def __(mo):
-    mo.md(r"""# Détails""")
-    return
 
 
 @app.cell
@@ -136,21 +136,24 @@ def __(
     f15 = f15[f15['Date_Facture'] >= f15['start_date']]
     f15 = f15[f15['Date_Facture'] <= f15['end_date']]
     f15 = f15.drop(columns=['start_date', 'end_date'])
+    f15['Montant_HT'] = pd.to_numeric(f15['Montant_HT'])
     f15
     return (f15,)
 
 
 @app.cell
-def __(f15):
-    f15_zel = f15[f15['Marque']=='ZEL']
+def __(convert_tva, f15):
+    f15_zel = f15[f15['Marque']=='ZEL'].assign(Taux_TVA_Applicable=f15['Taux_TVA_Applicable'].apply(convert_tva))
+    # f15_zel['Taux_TVA_Applicable'] = f15_zel['Taux_TVA_Applicable'].apply(convert_tva)
     f15_zel
     return (f15_zel,)
 
 
 @app.cell
 def __(f15_zel):
-    somme_f15 = sum(f15_zel['Montant_HT'].astype(float))
-    return (somme_f15,)
+    lignes_f15 = f15_zel[['Taux_TVA_Applicable', 'Montant_HT']].groupby('Taux_TVA_Applicable').sum()
+    lignes_f15
+    return (lignes_f15,)
 
 
 @app.cell
@@ -164,7 +167,7 @@ def __(
 ):
     f12 = process_flux('F12', flux_path / 'F12')
     f12['Marque'] = f12['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
-    f12['Montant_HT'] = f12['Montant_HT'].astype(float)
+    f12['Montant_HT'] = pd.to_numeric(f12['Montant_HT'])
     f12['start_date'] = pd.to_datetime(start_date_picker.value)
     f12['end_date'] = pd.to_datetime(end_date_picker.value)
 
@@ -176,16 +179,34 @@ def __(
 
 
 @app.cell
-def __(f12):
-    f12_zel = f12[f12['Marque']=='ZEL']
+def __(mo):
+    mo.md("""## Filtrage ZEL et Uniformisation des Taux TVA""")
+    return
+
+
+@app.cell
+def __():
+    # Convertir en float tout sauf 'NS'
+    def convert_tva(value):
+        try:
+            return str(float(value))  # Convertit en float si possible
+        except ValueError:
+            return value  # Garde 'NS' inchangé
+    return (convert_tva,)
+
+
+@app.cell
+def __(convert_tva, f12):
+    f12_zel = f12[f12['Marque']=='ZEL'].assign(Taux_TVA_Applicable=f12['Taux_TVA_Applicable'].apply(convert_tva))
     f12_zel
     return (f12_zel,)
 
 
 @app.cell
 def __(f12_zel):
-    somme_f12 = sum(f12_zel['Montant_HT'])
-    return (somme_f12,)
+    lignes_f12 = f12_zel[['Taux_TVA_Applicable', 'Montant_HT']].groupby('Taux_TVA_Applicable').sum()
+    lignes_f12
+    return (lignes_f12,)
 
 
 @app.cell
