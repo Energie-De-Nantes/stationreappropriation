@@ -1,25 +1,33 @@
 [tool.poetry]
 name = "stationreappropriation"
-version = "0.5.1"
+version = "0.6.0"
 description = "La Station de Réappropriation est un registre centralisé d'outils autonomes, répondant chacun à un besoin spécifique du commun."
 authors = ["Virgile Daugé <virgile.dauge@pm.me>"]
 license = "GPLv3"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
-marimo = "^0.9.9"
-electriflux = "^0.1.5"
+python = ">=3.12,<3.13"
+marimo = "^0.11.6"
 pandas = "^2.2.3"
 altair = "^5.4.1"
 python-dotenv = "^1.0.1"
 matplotlib = "^3.9.2"
 ipython = "^8.29.0"
 python-dateutil = "^2.9.0.post0"
+electricore = {path = "../electricore", develop = true}
+pandera = "^0.22.1"
+electriflux = ">=0.5.0"
+ydata-profiling = ">=4.12.2"
+setuptools = "*"
+ipywidgets = "^8.1.5"
 
 [tool.poetry.scripts]
 stationreappropriation-setup-autostart = "stationreappropriation.scripts.setup_autostart:main"
 stationreappropriation-remove-autostart = "stationreappropriation.scripts.remove_autostart:main"
+
+[tool.poetry.group.dev.dependencies]
+icecream = "^2.1.4"
 
 [build-system]
 requires = ["poetry-core"]
