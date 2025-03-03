@@ -5,7 +5,7 @@ app = marimo.App(width="medium")
 
 
 @app.cell(hide_code=True)
-def _():
+def choix_mois_facturation():
     import marimo as mo
     import pandas as pd
     import numpy as np
@@ -41,7 +41,7 @@ def _():
 
 
 @app.cell(hide_code=True)
-def _(gen_previous_month_boundaries, mo, radio):
+def choix_dates_facturation(gen_previous_month_boundaries, mo, radio):
     default_start, default_end = radio.value if radio.value is not None else gen_previous_month_boundaries()
     start_date_picker = mo.ui.date(value=default_start)
     end_date_picker = mo.ui.date(value=default_end)
@@ -54,7 +54,7 @@ def _(gen_previous_month_boundaries, mo, radio):
 
 
 @app.cell(hide_code=True)
-def _(end_date_picker, pd, start_date_picker):
+def conversion_dates(end_date_picker, pd, start_date_picker):
     from zoneinfo import ZoneInfo
     PARIS_TZ = ZoneInfo("Europe/Paris")
     deb = pd.to_datetime(start_date_picker.value).tz_localize(PARIS_TZ)
@@ -75,7 +75,7 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(env, flux_path, mo):
+def telechargement_flux(env, flux_path, mo):
     from stationreappropriation.marimo_utils import download_with_marimo_progress as _dl
     _processed, _errors = _dl(env, ['R15', 'R151', 'C15', 'F15', 'F12'], flux_path)
     mo.md(f"Processed #{len(_processed)} files, with #{len(_errors)} erreurs")
@@ -89,7 +89,7 @@ def _():
 
 
 @app.cell(hide_code=True)
-def _(flux_path, process_flux):
+def chargement_perimetre(flux_path, process_flux):
     from electricore.inputs.flux import lire_flux_c15
 
     historique = lire_flux_c15(process_flux('C15', flux_path / 'C15'))
@@ -97,7 +97,7 @@ def _(flux_path, process_flux):
 
 
 @app.cell(hide_code=True)
-def _(flux_path, process_flux):
+def chargement_releves(flux_path, process_flux):
     from electricore.inputs.flux import lire_flux_r151
 
     relevés = lire_flux_r151(process_flux('R151', flux_path / 'R151'))
@@ -117,7 +117,7 @@ def _(mo):
 
 
 @app.cell
-def _(deb, fin, historique):
+def identification_problemes_metier(deb, fin, historique):
     from electricore.core.périmètre.fonctions import extraire_historique_à_date, extraire_modifications_impactantes
 
     mci = extraire_modifications_impactantes(deb=deb, historique=extraire_historique_à_date(fin=fin, historique=historique))
@@ -126,7 +126,7 @@ def _(deb, fin, historique):
 
 
 @app.cell
-def _(deb, fin, historique, relevés):
+def calcul_energies_taxes(deb, fin, historique, relevés):
     from electricore.core.services import facturation
     factu = facturation(deb, fin, historique, relevés)
     factu
@@ -146,7 +146,7 @@ def _():
 
 
 @app.cell
-def _(env, mo):
+def chargement_donnees_odoo(env, mo):
     from stationreappropriation.odoo import get_enhanced_draft_orders
     draft_orders = get_enhanced_draft_orders(env)
     _stop_msg = mo.callout(mo.md(
@@ -185,7 +185,7 @@ def _(mo):
 
 
 @app.cell
-def _(factu):
+def preparation_metier(factu):
     required_cols = ['HP', 'HC', 'BASE', 'j', 'd_date', 'f_date', 'Type_Compteur', 'Num_Compteur', 'Num_Depannage', 'pdl', 'turpe_fix', 'turpe_var', 'turpe', 'missing_data']
 
     # On renomme quelques trucs pour se faciliter la vie pour l'instant : 
@@ -225,7 +225,13 @@ def _(mo):
 
 
 @app.cell
-def _(draft_orders, end_date_picker, métier, start_date_picker, taxes):
+def fusion_metier_odoo(
+    draft_orders,
+    end_date_picker,
+    métier,
+    start_date_picker,
+    taxes,
+):
     merged_data = draft_orders.merge(taxes[métier], left_on='x_pdl', right_on='pdl', how='left')
     days_in_month = (end_date_picker.value - start_date_picker.value).days
     merged_data['update_dates'] = merged_data['j'] != days_in_month
@@ -249,7 +255,7 @@ def _(mo):
 
 
 @app.cell
-def _(merged_data, mo, np, pd):
+def preparation_abonnements(merged_data, mo, np, pd):
     _orders = pd.DataFrame(merged_data['sale.order_id'].copy())
     _orders['x_invoicing_state'] = np.where(np.random.rand(len(_orders)) < 0.1, 'populated', 'checked')
     _orders.loc[merged_data['something_wrong'] == True, 'x_invoicing_state'] = 'draft'
@@ -268,7 +274,7 @@ def _(mo):
 
 
 @app.cell
-def _(merged_data, mo):
+def preparation_factures(merged_data, mo):
     _invoices = merged_data[['last_invoice_id', 
                             'turpe', 
                             'd_date', 'f_date', 
@@ -315,7 +321,7 @@ def _(mo):
 
 
 @app.cell
-def _(merged_data, pd):
+def preparation_lignes_energies(merged_data, pd):
     # On s'intéresse uniquement les données d'énergies qu'il faut mettre à jour
     update_conso_df = merged_data[(~merged_data['x_lisse']) & (merged_data['something_wrong']==False)].copy()
 
@@ -353,7 +359,7 @@ def _(mo):
 
 
 @app.cell
-def _(merged_data):
+def preparation_lignes_abonnements(merged_data):
     do_update_qty = (~(merged_data['x_lisse'] == True) | (merged_data['update_dates'] == True))
     abo = merged_data[do_update_qty][['line_id_Abonnements', 'j']]
     abo = abo.dropna(subset=['line_id_Abonnements', 'j'])
@@ -374,7 +380,7 @@ def _(mo):
 
 
 @app.cell
-def _(abo, base, hc, hp):
+def serialisation_lignes_factures(abo, base, hc, hp):
     lines = []
     lines += base.to_dict(orient='records')
     lines += hp.to_dict(orient='records')
@@ -390,7 +396,7 @@ def _(mo):
 
 
 @app.cell
-def _(abo, base, hc, hp, lines, mo):
+def visualisation_lignes_facture(abo, base, hc, hp, lines, mo):
     mo.accordion({
         'HC':hc, 
         'HP':hp, 
@@ -408,14 +414,14 @@ def _(mo):
 
 
 @app.cell
-def _(mo):
+def declanchement_envoi_vers_odoo(mo):
     red_button = mo.ui.run_button(kind='danger', label=f'Écrire dans la base Odoo')
     red_button
     return (red_button,)
 
 
 @app.cell
-def _(
+def envoi_vers_odoo(
     OdooConnector,
     env,
     invoices,
