@@ -69,10 +69,22 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""## Téléchargement et extraction des zip""")
+    return
+
+
+@app.cell(hide_code=True)
 def _(env, flux_path, mo):
     from stationreappropriation.marimo_utils import download_with_marimo_progress as _dl
     _processed, _errors = _dl(env, ['R15', 'R151', 'C15', 'F15', 'F12'], flux_path)
     mo.md(f"Processed #{len(_processed)} files, with #{len(_errors)} erreurs")
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    ## Interprétation des flux
     return
 
 
@@ -122,8 +134,8 @@ def _(deb, fin, historique, relevés):
 
 
 @app.cell(hide_code=True)
-def _():
-    # Odoo
+def _(mo):
+    mo.md("""# Odoo""")
     return
 
 
@@ -222,12 +234,6 @@ def _(draft_orders, end_date_picker, métier, start_date_picker, taxes):
 
     merged_data
     return days_in_month, merged_data
-
-
-@app.cell
-def _(mo):
-    red_button = mo.ui.run_button(kind='danger', label=f'Écrire dans la base Odoo')
-    return (red_button,)
 
 
 @app.cell(hide_code=True)
@@ -378,25 +384,53 @@ def _(abo, base, hc, hp):
 
 
 @app.cell
-def _(lines, mo):
-    mo.accordion({'Lignes de factures': lines})
-    return
-
-
-@app.cell
 def _(mo):
     mo.md(r"""# Visualisation des données à envoyer""")
     return
 
 
 @app.cell
-def _(abo, base, hc, hp, mo):
+def _(abo, base, hc, hp, lines, mo):
     mo.accordion({
         'HC':hc, 
         'HP':hp, 
         'base':base, 
-        'jours':abo
+        'jours':abo,
+        'Lignes de factures': lines
     })
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""# Envoi des données à Odoo""")
+    return
+
+
+@app.cell
+def _(mo):
+    red_button = mo.ui.run_button(kind='danger', label=f'Écrire dans la base Odoo')
+    red_button
+    return (red_button,)
+
+
+@app.cell
+def _(
+    OdooConnector,
+    env,
+    invoices,
+    lines,
+    mo,
+    orders,
+    red_button,
+    safety_switch,
+):
+    mo.stop(not red_button.value)
+
+    with OdooConnector(config=env, sim=safety_switch.value) as _odoo:
+        _odoo.update('sale.order', orders)
+        _odoo.update('account.move', invoices)
+        _odoo.update('account.move.line', lines)
     return
 
 
