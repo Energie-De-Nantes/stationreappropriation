@@ -2,7 +2,6 @@ from stationreappropriation.odoo import OdooConnector
 
 import pandas as pd
 from pandas import DataFrame, Series
-from icecream import ic
 
 def get_valid_subscriptions_pdl(config: dict) -> DataFrame:
     # Initialiser OdooAPI avec le dict de configuration
@@ -40,7 +39,7 @@ def get_enhanced_draft_orders(config: dict) -> DataFrame:
                                                 'x_pdl', 
                                                 'invoice_ids', 
                                                 'x_lisse',])
-        ic(draft_orders)
+
         if draft_orders.empty:
             return draft_orders
         # Ici, on filtre la liste des facture en prenant uniquement celle a l'identifiant le plus élevé
@@ -95,7 +94,6 @@ def _add_cat_fields(config: dict, data: DataFrame, fields: list[str])-> DataFram
         lines = odoo.read('account.move.line', 
                           ids=df_exploded['invoice_line_ids'].to_list(),
                           fields=['id', 'product_id'])
-        ic(lines)
         if lines.empty:
             return DataFrame()
         lines = lines.dropna(subset=['product_id'])
