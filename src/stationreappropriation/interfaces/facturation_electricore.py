@@ -105,7 +105,7 @@ def chargement_releves(flux_path, process_flux):
 
 
 @app.cell
-def _(historique, mo, relevés):
+def visualisation_donnees_metier(historique, mo, relevés):
     mo.accordion({"relevés": relevés, 'historique': historique}, lazy=True)
     return
 
@@ -255,9 +255,16 @@ def _(mo):
 
 
 @app.cell
-def preparation_abonnements(merged_data, mo, np, pd):
+def _(mo):
+    slider = mo.ui.slider(start=1, stop=10, step=1, label='Pourcentage de couverture des tests')
+    slider
+    return (slider,)
+
+
+@app.cell
+def preparation_abonnements(merged_data, mo, np, pd, slider):
     _orders = pd.DataFrame(merged_data['sale.order_id'].copy())
-    _orders['x_invoicing_state'] = np.where(np.random.rand(len(_orders)) < 0.1, 'populated', 'checked')
+    _orders['x_invoicing_state'] = np.where(np.random.rand(len(_orders)) < slider.value/100, 'populated', 'checked')
     _orders.loc[merged_data['something_wrong'] == True, 'x_invoicing_state'] = 'draft'
     _orders.rename(columns={'sale.order_id':'id'}, inplace=True)
     orders = _orders.to_dict(orient='records')
@@ -337,12 +344,11 @@ def preparation_lignes_energies(merged_data, pd):
         hp = update_conso_df[update_conso_df['line_id_HP'].notna()][['line_id_HP', 'HP']]
         hp = hp.dropna(subset=['HP'])
         hp.rename(columns={'line_id_HP': 'id', 'HP': 'quantity'}, inplace=True)
-    
+
     if 'line_id_Base' in update_conso_df.columns:
         base = update_conso_df[update_conso_df['line_id_Base'].notna()][['line_id_Base', 'BASE']]
         base = base.dropna(subset=['BASE'])
         base.rename(columns={'line_id_Base': 'id', 'BASE': 'quantity'}, inplace=True)
-    
     return base, hc, hp, update_conso_df
 
 
