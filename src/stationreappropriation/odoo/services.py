@@ -2,6 +2,7 @@ from stationreappropriation.odoo import OdooConnector
 
 import pandas as pd
 from pandas import DataFrame, Series
+from icecream import ic
 
 def get_valid_subscriptions_pdl(config: dict) -> DataFrame:
     # Initialiser OdooAPI avec le dict de configuration
@@ -32,12 +33,14 @@ def get_enhanced_draft_orders(config: dict) -> DataFrame:
     with OdooConnector(config=config, sim=True) as odoo:
         draft_orders = odoo.search_read('sale.order', 
                                         filters=[[['state', '=', 'sale'], 
-                                                  ['x_invoicing_state', '=', 'draft']]], 
+                                                  ['x_invoicing_state', '=', 'draft'],
+                                                  ['subscription_state', '=', '3_progress']]],
                                         fields=['id',
                                                 'display_name', 
                                                 'x_pdl', 
                                                 'invoice_ids', 
                                                 'x_lisse',])
+        ic(draft_orders)
         if draft_orders.empty:
             return draft_orders
         # Ici, on filtre la liste des facture en prenant uniquement celle a l'identifiant le plus élevé
@@ -53,7 +56,9 @@ def get_enhanced_draft_orders(config: dict) -> DataFrame:
         merged = draft_orders.merge(draft_invoices[['account.move_id', 'invoice_line_ids']], left_on='last_invoice_id', right_on='account.move_id', how='left')
         
         compl = _add_cat_fields(config, merged, [])
-
+        
+        if compl.empty:
+            return compl
         compl.drop(columns=['account.move_id', 'invoice_ids', 'invoice_line_ids'], inplace=True)
         return compl
     
@@ -90,7 +95,9 @@ def _add_cat_fields(config: dict, data: DataFrame, fields: list[str])-> DataFram
         lines = odoo.read('account.move.line', 
                           ids=df_exploded['invoice_line_ids'].to_list(),
                           fields=['id', 'product_id'])
-        
+        ic(lines)
+        if lines.empty:
+            return DataFrame()
         lines = lines.dropna(subset=['product_id'])
         lines['product_id'] = _get_many2one_id_list(lines['product_id'])
 
