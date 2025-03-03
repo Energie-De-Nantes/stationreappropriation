@@ -145,7 +145,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def chargement_donnees_odoo(env, mo):
     from stationreappropriation.odoo import get_enhanced_draft_orders
     draft_orders = get_enhanced_draft_orders(env)
@@ -184,7 +184,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def preparation_metier(factu):
     required_cols = ['HP', 'HC', 'BASE', 'j', 'd_date', 'f_date', 'Type_Compteur', 'Num_Compteur', 'Num_Depannage', 'pdl', 'turpe_fix', 'turpe_var', 'turpe', 'missing_data']
 
@@ -194,8 +194,8 @@ def preparation_metier(factu):
     métier = métier.rename(columns={
         'Date_Releve_deb': 'd_date',
         'Date_Releve_fin': 'f_date',
-        'Energie_Calculee': 'missing_data',
         'turpe_fixe': 'turpe_fix'})
+    métier['missing_data'] = ~métier['Energie_Calculee']
     import pandera as pa
     from typing import List, Optional
     class ModèleMétier(pa.DataFrameModel):
@@ -229,10 +229,10 @@ def fusion_metier_odoo(
     draft_orders,
     end_date_picker,
     métier,
+    required_cols,
     start_date_picker,
-    taxes,
 ):
-    merged_data = draft_orders.merge(taxes[métier], left_on='x_pdl', right_on='pdl', how='left')
+    merged_data = draft_orders.merge(métier[required_cols], left_on='x_pdl', right_on='pdl', how='left')
     days_in_month = (end_date_picker.value - start_date_picker.value).days
     merged_data['update_dates'] = merged_data['j'] != days_in_month
     merged_data['missing_data'] = merged_data['missing_data'].astype(bool).fillna(True)
@@ -254,14 +254,14 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
-    slider = mo.ui.slider(start=1, stop=10, step=1, label='Pourcentage de couverture des tests')
+    slider = mo.ui.slider(start=1, stop=10, step=1, value=5, label='Pourcentage de couverture des tests')
     slider
     return (slider,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def preparation_abonnements(merged_data, mo, np, pd, slider):
     _orders = pd.DataFrame(merged_data['sale.order_id'].copy())
     _orders['x_invoicing_state'] = np.where(np.random.rand(len(_orders)) < slider.value/100, 'populated', 'checked')
@@ -280,7 +280,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def preparation_factures(merged_data, mo):
     _invoices = merged_data[['last_invoice_id', 
                             'turpe', 
@@ -327,7 +327,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def preparation_lignes_energies(merged_data, pd):
     # On s'intéresse uniquement les données d'énergies qu'il faut mettre à jour
     update_conso_df = merged_data[(~merged_data['x_lisse']) & (merged_data['something_wrong']==False)].copy()
@@ -364,7 +364,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def preparation_lignes_abonnements(merged_data):
     do_update_qty = (~(merged_data['x_lisse'] == True) | (merged_data['update_dates'] == True))
     abo = merged_data[do_update_qty][['line_id_Abonnements', 'j']]
@@ -385,7 +385,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def serialisation_lignes_factures(abo, base, hc, hp):
     lines = []
     lines += base.to_dict(orient='records')
@@ -427,23 +427,16 @@ def declanchement_envoi_vers_odoo(mo):
 
 
 @app.cell
-def envoi_vers_odoo(
-    OdooConnector,
-    env,
-    invoices,
-    lines,
-    mo,
-    orders,
-    red_button,
-    safety_switch,
-):
+def envoi_vers_odoo(env, invoices, lines, mo, orders, red_button):
+    from stationreappropriation.odoo import OdooConnector
+
     mo.stop(not red_button.value)
 
-    with OdooConnector(config=env, sim=safety_switch.value) as _odoo:
-        _odoo.update('sale.order', orders)
-        _odoo.update('account.move', invoices)
-        _odoo.update('account.move.line', lines)
-    return
+    with OdooConnector(config=env, sim=False) as _odoo:
+        _odoo.update("sale.order", orders)
+        _odoo.update("account.move", invoices)
+        _odoo.update("account.move.line", lines)
+    return (OdooConnector,)
 
 
 if __name__ == "__main__":
