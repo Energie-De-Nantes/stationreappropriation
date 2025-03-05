@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.12"
+__generated_with = "0.11.14"
 app = marimo.App(width="medium")
 
 
@@ -78,6 +78,48 @@ def _(flux_path, process_flux):
     historique = lire_flux_c15(process_flux('C15', flux_path / 'C15'))
     historique
     return historique, lire_flux_c15
+
+
+@app.cell
+def _(flux_path, process_flux):
+    f15 = process_flux('F15', flux_path / 'F15')
+    return (f15,)
+
+
+@app.cell
+def _(flux_path, process_flux):
+    f12 = process_flux('F12', flux_path / 'F12')
+    return (f12,)
+
+
+@app.cell
+def _():
+    from electricore.inputs.flux import lire_flux_f1x
+    return (lire_flux_f1x,)
+
+
+@app.cell
+def _(f12):
+    f12
+    return
+
+
+@app.cell
+def _(f15):
+    f15
+    return
+
+
+@app.cell
+def _(f12, f15, lire_flux_f1x, pd):
+    factures_réseau = lire_flux_f1x(pd.concat([f12, f15], ignore_index=True))
+    factures_réseau
+    return (factures_réseau,)
+
+
+@app.cell
+def _():
+    return
 
 
 @app.cell
@@ -293,14 +335,8 @@ def _(deb, fin, historique, relevés):
 
 
 @app.cell
-def _(deb, factu, fin):
-    from electricore.core.taxes.turpe import compute_turpe, get_applicable_rules
-
-    régles_turpe = get_applicable_rules(deb, fin)
-    régles_turpe
-    turpe = compute_turpe(factu, régles_turpe)
-    turpe
-    return compute_turpe, get_applicable_rules, régles_turpe, turpe
+def _():
+    return
 
 
 if __name__ == "__main__":
