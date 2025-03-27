@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.12"
+__generated_with = "0.11.17"
 app = marimo.App(width="medium")
 
 
@@ -38,6 +38,12 @@ def choix_mois_facturation():
         process_flux,
         radio,
     )
+
+
+@app.cell
+def _():
+    # gen_last_months()
+    return
 
 
 @app.cell(hide_code=True)
@@ -104,7 +110,7 @@ def chargement_releves(flux_path, process_flux):
     return lire_flux_r151, relevés
 
 
-@app.cell
+@app.cell(hide_code=True)
 def visualisation_donnees_metier(historique, mo, relevés):
     mo.accordion({"relevés": relevés, 'historique': historique}, lazy=True)
     return
@@ -116,7 +122,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def identification_problemes_metier(deb, fin, historique):
     from electricore.core.périmètre.fonctions import extraire_historique_à_date, extraire_modifications_impactantes
 
@@ -125,7 +131,7 @@ def identification_problemes_metier(deb, fin, historique):
     return extraire_historique_à_date, extraire_modifications_impactantes, mci
 
 
-@app.cell
+@app.cell(hide_code=True)
 def calcul_energies_taxes(deb, fin, historique, relevés):
     from electricore.core.services import facturation
     factu = facturation(deb, fin, historique, relevés)
