@@ -1,7 +1,21 @@
 import marimo
 
-__generated_with = "0.11.17"
+__generated_with = "0.11.20"
 app = marimo.App(width="medium")
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        """
+        ## TODO
+
+        1) ya des lissé·es qui ont 30 j au lieu de 30,42 alors qu'iels sont pas arrivé·es ce mois-ci
+        2) MES/CFNE, manque un jour, reagarder les temps des CFNE (supprimer le temps avant de faire les calculs si la date est bonne)
+        3) NB jour mois pas bon 30 au lieu de 31 en Mars ?
+        """
+    )
+    return
 
 
 @app.cell(hide_code=True)
@@ -13,7 +27,7 @@ def choix_mois_facturation():
     from datetime import date
     from pathlib import Path
 
-    from electriflux.simple_reader import process_flux
+    from electriflux.simple_reader import process_flux, iterative_process_flux
 
     from stationreappropriation import load_prefixed_dotenv
     from stationreappropriation.utils import gen_previous_month_boundaries, gen_last_months
@@ -31,6 +45,7 @@ def choix_mois_facturation():
         flux_path,
         gen_last_months,
         gen_previous_month_boundaries,
+        iterative_process_flux,
         load_prefixed_dotenv,
         mo,
         np,
@@ -68,6 +83,20 @@ def conversion_dates(end_date_picker, pd, start_date_picker):
     return PARIS_TZ, ZoneInfo, deb, fin
 
 
+@app.cell(hide_code=True)
+def _(env, pd):
+    from stationreappropriation.odoo import get_pdls
+    pdls = get_pdls(env)
+    _local = pd.DataFrame({
+        'sale.order_id': [0, 0, 0],  # Exemple d'identifiant de commande
+        'pdl': ['14295224261882', '50070117855585', '50000508594660']           # Exemple de PDL
+    })
+
+    # Ajouter la nouvelle ligne à la dataframe avec pd.concat
+    pdls = pd.concat([pdls, _local], ignore_index=True)
+    return get_pdls, pdls
+
+
 @app.cell
 def _(mo):
     mo.md(r"""# Chargement des flux""")
@@ -95,10 +124,12 @@ def _():
 
 
 @app.cell(hide_code=True)
-def chargement_perimetre(flux_path, process_flux):
+def chargement_perimetre(flux_path, pdls, process_flux):
     from electricore.inputs.flux import lire_flux_c15
 
     historique = lire_flux_c15(process_flux('C15', flux_path / 'C15'))
+    historique['Marque'] = historique['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
+    historique = historique[sorted(historique.columns)]
     return historique, lire_flux_c15
 
 
@@ -111,8 +142,19 @@ def chargement_releves(flux_path, process_flux):
 
 
 @app.cell(hide_code=True)
-def visualisation_donnees_metier(historique, mo, relevés):
-    mo.accordion({"relevés": relevés, 'historique': historique}, lazy=True)
+def _(deb, fin, flux_path, iterative_process_flux, pdls):
+    from electricore.inputs.flux import lire_flux_f1x
+
+    factures_réseau = lire_flux_f1x(iterative_process_flux('F15', flux_path / 'F15'))
+    factures_réseau = factures_réseau[(factures_réseau['Date_Debut'] >= deb) & (factures_réseau['Date_Debut'] <= fin)]
+    factures_réseau['Marque'] = factures_réseau['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
+    prestations = factures_réseau[factures_réseau['Nature_EV'] == 'Prestations et frais']
+    return factures_réseau, lire_flux_f1x, prestations
+
+
+@app.cell(hide_code=True)
+def visualisation_donnees_metier(historique, mo, prestations, relevés):
+    mo.accordion({"relevés": relevés, 'historique': historique, 'prestations': prestations}, lazy=True)
     return
 
 
