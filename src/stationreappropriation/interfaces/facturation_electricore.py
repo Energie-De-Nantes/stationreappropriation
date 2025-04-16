@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.20"
+__generated_with = "0.11.31"
 app = marimo.App(width="medium")
 
 
@@ -53,12 +53,6 @@ def choix_mois_facturation():
         process_flux,
         radio,
     )
-
-
-@app.cell
-def _():
-    # gen_last_months()
-    return
 
 
 @app.cell(hide_code=True)
@@ -273,15 +267,9 @@ def _(mo):
 
 
 @app.cell
-def fusion_metier_odoo(
-    draft_orders,
-    end_date_picker,
-    métier,
-    required_cols,
-    start_date_picker,
-):
+def fusion_metier_odoo(deb, draft_orders, fin, métier, required_cols):
     merged_data = draft_orders.merge(métier[required_cols], left_on='x_pdl', right_on='pdl', how='left')
-    days_in_month = (end_date_picker.value - start_date_picker.value).days
+    days_in_month = (fin.date() - deb.date()).days + 1
     merged_data['update_dates'] = merged_data['j'] != days_in_month
     merged_data['missing_data'] = merged_data['missing_data'].astype(bool).fillna(True)
     merged_data['something_wrong'] = (merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)
