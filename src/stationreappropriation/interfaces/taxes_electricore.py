@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.20"
+__generated_with = "0.11.31"
 app = marimo.App(width="medium")
 
 
@@ -129,7 +129,12 @@ def chargement_perimetre(deb, fin, flux_path, pdls, process_flux):
     mci = extraire_modifications_impactantes(deb=deb, historique=extraire_historique_à_date(fin=fin, historique=historique))
     mci['Marque'] = mci['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     mci = mci[mci['Marque'] == 'EDN']
+
+    _masque = (historique['pdl'].isin(mci['pdl'])) & (historique["Date_Evenement"] >= deb) & (historique["Date_Evenement"] <= fin) & historique['Evenement_Declencheur'].isin(['CFNE', 'CFNS', 'MES', 'PES', 'RES'])
+    es_mci = historique[_masque]
+    es_mci
     return (
+        es_mci,
         extraire_historique_à_date,
         extraire_modifications_impactantes,
         historique,
@@ -147,8 +152,13 @@ def chargement_releves(flux_path, process_flux):
 
 
 @app.cell(hide_code=True)
-def visualisation_donnees_metier(historique, mci, mo, relevés):
-    mo.accordion({"relevés": relevés, 'historique': historique, 'Modifications chiantes': mci}, lazy=True)
+def visualisation_donnees_metier(es_mci, historique, mci, mo, relevés):
+    mo.accordion(
+        {"relevés": relevés, 
+         'historique': historique, 
+         'Modifications chiantes': mci, 
+         'Entrées/Sorties Modifs chiantes': es_mci
+        }, lazy=True)
     return
 
 
@@ -161,7 +171,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def calcul_energies_taxes(deb, fin, historique, relevés):
     from electricore.core.services import facturation
-    factu = facturation(deb, fin, historique, relevés)
+    factu = facturation(deb, fin, historique, relevés, inclure_jour_fin=True)
     factu
     return factu, facturation
 
@@ -192,7 +202,7 @@ def _(PARIS_TZ, env, pd):
     lines["date_facturation"] = pd.to_datetime(lines["date_facturation"]).dt.tz_localize(PARIS_TZ)
     # Calculer la date de consommation (date de facturation - 1 mois)
     lines["date"] = lines["date_facturation"] - pd.DateOffset(months=1)
-    lines
+    # lines
     return OdooConnector, lines, odoo
 
 
