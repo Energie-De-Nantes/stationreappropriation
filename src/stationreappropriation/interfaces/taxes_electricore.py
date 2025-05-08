@@ -222,5 +222,54 @@ def _(filtered_lines):
     return assiete_accise, assiete_accise_trunc, math
 
 
+@app.cell
+def _(mo):
+    mo.md("""#Interpretation ZEL""")
+    return
+
+
+@app.cell
+def _(Path, mo):
+    file_browser = mo.ui.file_browser(
+        initial_path=Path('~/data/').expanduser(), multiple=True
+    )
+    file_browser
+    return (file_browser,)
+
+
+@app.cell
+def _(file_browser, pd):
+    zel_data = pd.read_csv(file_browser.path(index=0), decimal=',')
+    zel_data['Montant'] = pd.to_numeric(zel_data['Montant'], )
+    zel_data['MWh'] = zel_data['Quantité']/1000
+    zel_data['taux'] = zel_data['PUHT']*1000
+    zel_data
+    return (zel_data,)
+
+
+@app.cell
+def _(zel_data):
+    zel_data[zel_data['Elements']=='CTA']['Quantité']
+    return
+
+
+@app.cell
+def _(zel_data):
+    accise_data = zel_data[zel_data['Elements']=='ACCISE']
+    accise_data
+    return (accise_data,)
+
+
+@app.cell
+def _(accise_data):
+    accise_data[['taux', 'MWh']].groupby('taux').sum()
+    return
+
+
+@app.cell
+def _():
+    return
+
+
 if __name__ == "__main__":
     app.run()
