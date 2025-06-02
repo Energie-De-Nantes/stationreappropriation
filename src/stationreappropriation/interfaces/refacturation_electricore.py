@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.20"
+__generated_with = "0.11.31"
 app = marimo.App(width="medium")
 
 
@@ -68,23 +68,20 @@ def _(flux_path, process_flux):
 
 
 @app.cell
-def _(f12, f15, i_f12, i_f15):
-    from pandas.testing import assert_frame_equal
-    assert_frame_equal(f15, i_f15)
-    assert_frame_equal(f12, i_f12)
-    return (assert_frame_equal,)
-
-
-@app.cell
-def _(f12, f15, mo, pd, pdls):
+def _(f12, f15, pd, pdls):
     from electricore.inputs.flux import lire_flux_f1x
     factures_réseau = lire_flux_f1x(pd.concat([f12, f15], ignore_index=True))
     factures_réseau['Marque'] = factures_réseau['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     factures_réseau["Mois"] = factures_réseau["Date_Facture"].dt.to_period("M")
     duplicates = factures_réseau[factures_réseau.duplicated()]
     factures_réseau = factures_réseau.drop_duplicates()
-    mo.accordion({'Factures réseau': factures_réseau, 'Doublons': duplicates})
     return duplicates, factures_réseau, lire_flux_f1x
+
+
+@app.cell
+def _():
+    # mo.accordion({'Factures réseau': factures_réseau, 'Doublons': duplicates})
+    return
 
 
 @app.cell

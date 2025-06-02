@@ -4,20 +4,6 @@ __generated_with = "0.11.31"
 app = marimo.App(width="medium")
 
 
-@app.cell
-def _(mo):
-    mo.md(
-        """
-        ## TODO
-
-        1) ya des lissé·es qui ont 30 j au lieu de 30,42 alors qu'iels sont pas arrivé·es ce mois-ci
-        2) MES/CFNE, manque un jour, reagarder les temps des CFNE (supprimer le temps avant de faire les calculs si la date est bonne)
-        3) NB jour mois pas bon 30 au lieu de 31 en Mars ?
-        """
-    )
-    return
-
-
 @app.cell(hide_code=True)
 def choix_mois_facturation():
     import marimo as mo
@@ -159,10 +145,11 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def identification_problemes_metier(deb, fin, historique):
+def identification_problemes_metier(deb, fin, historique, pdls):
     from electricore.core.périmètre.fonctions import extraire_historique_à_date, extraire_modifications_impactantes
 
     mci = extraire_modifications_impactantes(deb=deb, historique=extraire_historique_à_date(fin=fin, historique=historique))
+    mci['Marque'] = mci['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     mci
     return extraire_historique_à_date, extraire_modifications_impactantes, mci
 
