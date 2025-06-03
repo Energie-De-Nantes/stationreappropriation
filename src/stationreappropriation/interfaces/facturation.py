@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.31"
+__generated_with = "0.13.15"
 app = marimo.App(width="medium")
 
 
@@ -25,14 +25,10 @@ def choix_mois_facturation():
     radio = mo.ui.radio(options=gen_last_months(), label='Choisi le Mois a traiter')
     radio
     return (
-        Path,
-        date,
         env,
         flux_path,
-        gen_last_months,
         gen_previous_month_boundaries,
         iterative_process_flux,
-        load_prefixed_dotenv,
         mo,
         np,
         pd,
@@ -51,7 +47,7 @@ def choix_dates_facturation(gen_previous_month_boundaries, mo, radio):
         Tu peux aussi choisir directement les dates de début {start_date_picker} et de fin {end_date_picker}\n
         """
     )
-    return default_end, default_start, end_date_picker, start_date_picker
+    return end_date_picker, start_date_picker
 
 
 @app.cell(hide_code=True)
@@ -60,7 +56,7 @@ def conversion_dates(end_date_picker, pd, start_date_picker):
     PARIS_TZ = ZoneInfo("Europe/Paris")
     deb = pd.to_datetime(start_date_picker.value).tz_localize(PARIS_TZ)
     fin = pd.to_datetime(end_date_picker.value).tz_localize(PARIS_TZ)
-    return PARIS_TZ, ZoneInfo, deb, fin
+    return deb, fin
 
 
 @app.cell(hide_code=True)
@@ -74,7 +70,7 @@ def _(env, pd):
 
     # Ajouter la nouvelle ligne à la dataframe avec pd.concat
     pdls = pd.concat([pdls, _local], ignore_index=True)
-    return get_pdls, pdls
+    return (pdls,)
 
 
 @app.cell
@@ -110,7 +106,7 @@ def chargement_perimetre(flux_path, pdls, process_flux):
     historique = lire_flux_c15(process_flux('C15', flux_path / 'C15'))
     historique['Marque'] = historique['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     historique = historique[sorted(historique.columns)]
-    return historique, lire_flux_c15
+    return (historique,)
 
 
 @app.cell(hide_code=True)
@@ -118,7 +114,7 @@ def chargement_releves(flux_path, process_flux):
     from electricore.inputs.flux import lire_flux_r151
 
     relevés = lire_flux_r151(process_flux('R151', flux_path / 'R151'))
-    return lire_flux_r151, relevés
+    return (relevés,)
 
 
 @app.cell(hide_code=True)
@@ -129,7 +125,7 @@ def _(deb, fin, flux_path, iterative_process_flux, pdls):
     factures_réseau = factures_réseau[(factures_réseau['Date_Debut'] >= deb) & (factures_réseau['Date_Debut'] <= fin)]
     factures_réseau['Marque'] = factures_réseau['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     prestations = factures_réseau[factures_réseau['Nature_EV'] == 'Prestations et frais']
-    return factures_réseau, lire_flux_f1x, prestations
+    return (prestations,)
 
 
 @app.cell(hide_code=True)
@@ -151,7 +147,7 @@ def identification_problemes_metier(deb, fin, historique, pdls):
     mci = extraire_modifications_impactantes(deb=deb, historique=extraire_historique_à_date(fin=fin, historique=historique))
     mci['Marque'] = mci['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     mci
-    return extraire_historique_à_date, extraire_modifications_impactantes, mci
+    return
 
 
 @app.cell(hide_code=True)
@@ -159,7 +155,7 @@ def calcul_energies_taxes(deb, fin, historique, relevés):
     from electricore.core.services import facturation
     factu = facturation(deb, fin, historique, relevés)
     factu
-    return factu, facturation
+    return (factu,)
 
 
 @app.cell(hide_code=True)
@@ -192,7 +188,7 @@ def chargement_donnees_odoo(env, mo):
 
     mo.stop(draft_orders.empty, _stop_msg)
     draft_orders
-    return draft_orders, get_enhanced_draft_orders
+    return (draft_orders,)
 
 
 @app.cell(hide_code=True)
@@ -205,10 +201,10 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ### Préparation des données métier
+    ### Préparation des données métier
 
-        Cette adaptation est nécessaire pour connecter la nouvelle version de electricore à la partie Odoo de stationréappropriation. Il y aura une correspondance directe plus tard.
-        """
+    Cette adaptation est nécessaire pour connecter la nouvelle version de electricore à la partie Odoo de stationréappropriation. Il y aura une correspondance directe plus tard.
+    """
     )
     return
 
@@ -244,7 +240,7 @@ def preparation_metier(factu):
         missing_data: pa.typing.Series[bool] = pa.Field()
 
     métier = ModèleMétier.validate(métier)
-    return List, ModèleMétier, Optional, métier, pa, required_cols
+    return métier, required_cols
 
 
 @app.cell(hide_code=True)
@@ -262,7 +258,7 @@ def fusion_metier_odoo(deb, draft_orders, fin, métier, required_cols):
     merged_data['something_wrong'] = (merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)
 
     merged_data
-    return days_in_month, merged_data
+    return (merged_data,)
 
 
 @app.cell(hide_code=True)
@@ -342,10 +338,10 @@ def _(mo):
 def _(mo):
     mo.md(
         r"""
-        ### Énergies Consommées
+    ### Énergies Consommées
 
-        On ne met à jour que les non-lissés, dont on dispose des données.
-        """
+    On ne met à jour que les non-lissés, dont on dispose des données.
+    """
     )
     return
 
@@ -372,17 +368,17 @@ def preparation_lignes_energies(merged_data, pd):
         base = update_conso_df[update_conso_df['line_id_Base'].notna()][['line_id_Base', 'BASE']]
         base = base.dropna(subset=['BASE'])
         base.rename(columns={'line_id_Base': 'id', 'BASE': 'quantity'}, inplace=True)
-    return base, hc, hp, update_conso_df
+    return base, hc, hp
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
         r"""
-        ### Jours d'abonnement
+    ### Jours d'abonnement
 
-        On ne met à jour que si pas lissé ou lissé entré ou sorti dans la période
-        """
+    On ne met à jour que si pas lissé ou lissé entré ou sorti dans la période
+    """
     )
     return
 
@@ -393,17 +389,17 @@ def preparation_lignes_abonnements(merged_data):
     abo = merged_data[do_update_qty][['line_id_Abonnements', 'j']]
     abo = abo.dropna(subset=['line_id_Abonnements', 'j'])
     abo.rename(columns={'line_id_Abonnements': 'id', 'j': 'quantity'}, inplace=True)
-    return abo, do_update_qty
+    return (abo,)
 
 
 @app.cell
 def _(mo):
     mo.md(
         r"""
-        ## Convertion DataFrame vers une liste de lignes
+    ## Convertion DataFrame vers une liste de lignes
 
-        On va ajouter toutes les lignes, hp, hc, base et abonnement dans une même liste, qui sera ensuite envoyée d'un bloc à Odoo.
-        """
+    On va ajouter toutes les lignes, hp, hc, base et abonnement dans une même liste, qui sera ensuite envoyée d'un bloc à Odoo.
+    """
     )
     return
 
@@ -459,7 +455,7 @@ def envoi_vers_odoo(env, invoices, lines, mo, orders, red_button):
         _odoo.update("sale.order", orders)
         _odoo.update("account.move", invoices)
         _odoo.update("account.move.line", lines)
-    return (OdooConnector,)
+    return
 
 
 if __name__ == "__main__":

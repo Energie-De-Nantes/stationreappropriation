@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.31"
+__generated_with = "0.13.15"
 app = marimo.App(width="medium")
 
 
@@ -19,17 +19,7 @@ def _():
     env = load_prefixed_dotenv(prefix='SR_')
     flux_path = Path('~/data/flux_enedis_v2/').expanduser()
     flux_path.mkdir(parents=True, exist_ok=True)
-    return (
-        Path,
-        env,
-        flux_path,
-        iterative_process_flux,
-        load_prefixed_dotenv,
-        mo,
-        np,
-        pd,
-        process_flux,
-    )
+    return env, flux_path, iterative_process_flux, mo, np, pd, process_flux
 
 
 @app.cell
@@ -42,7 +32,7 @@ def _(env, flux_path, iterative_process_flux, mo):
     i_f12 = iterative_process_flux('F12', flux_path / 'F12')
     mo.md(f"Processed #{len(_processed)} files, with #{len(_errors)} erreurs")
     i_f15
-    return i_f12, i_f15
+    return
 
 
 @app.cell
@@ -56,7 +46,7 @@ def _(env, pd):
 
     # Ajouter la nouvelle ligne à la dataframe avec pd.concat
     pdls = pd.concat([pdls, _local], ignore_index=True)
-    return get_pdls, pdls
+    return (pdls,)
 
 
 @app.cell
@@ -75,7 +65,7 @@ def _(f12, f15, pd, pdls):
     factures_réseau["Mois"] = factures_réseau["Date_Facture"].dt.to_period("M")
     duplicates = factures_réseau[factures_réseau.duplicated()]
     factures_réseau = factures_réseau.drop_duplicates()
-    return duplicates, factures_réseau, lire_flux_f1x
+    return duplicates, factures_réseau
 
 
 @app.cell
@@ -112,34 +102,32 @@ def _(mo):
     return
 
 
-@app.cell
-def _():
-    def regroupement_mensuel_par_marque(df):
-        factures = df.copy()
-        if "Mois" not in df.columns:
-            factures["Mois"] = factures["Date_Facture"].dt.to_period("M")
+@app.function
+def regroupement_mensuel_par_marque(df):
+    factures = df.copy()
+    if "Mois" not in df.columns:
+        factures["Mois"] = factures["Date_Facture"].dt.to_period("M")
 
-        df_grouped = (
-            factures
-            .groupby(["Mois", "Marque", "Taux_TVA_Applicable", "Source"])["Montant_HT"]
-            .sum()
-            .unstack(["Marque", "Taux_TVA_Applicable","Source"])  # Création de colonnes pour chaque combinaison
-            .fillna(0)  # Remplacer les NaN par 0
-            .reset_index()
-        )
-        df_grouped.columns = ['_'.join(map(str, col)) if isinstance(col, tuple) else col for col in df_grouped.columns]
-        return df_grouped
-    return (regroupement_mensuel_par_marque,)
+    df_grouped = (
+        factures
+        .groupby(["Mois", "Marque", "Taux_TVA_Applicable", "Source"])["Montant_HT"]
+        .sum()
+        .unstack(["Marque", "Taux_TVA_Applicable","Source"])  # Création de colonnes pour chaque combinaison
+        .fillna(0)  # Remplacer les NaN par 0
+        .reset_index()
+    )
+    df_grouped.columns = ['_'.join(map(str, col)) if isinstance(col, tuple) else col for col in df_grouped.columns]
+    return df_grouped
 
 
 @app.cell
-def _(factures_réseau, regroupement_mensuel_par_marque):
+def _(factures_réseau):
     regroupement_mensuel_par_marque(factures_réseau)
     return
 
 
 @app.cell
-def _(factures_réseau, regroupement_mensuel_par_marque):
+def _(factures_réseau):
     résumé =regroupement_mensuel_par_marque(factures_réseau[factures_réseau['Marque']=='ZEL'])
 
     résumé['Total HT'] = résumé[[c for c in résumé.columns if c.startswith('ZEL')]].sum(axis=1)
@@ -148,41 +136,39 @@ def _(factures_réseau, regroupement_mensuel_par_marque):
 
     print(résumé['ZEL_20.0_Flux_F12'].sum())
     résumé.round(2)
-    return (résumé,)
+    return
 
 
 @app.cell
 def _(mo):
     mo.md(
         """
-        ## Vérification des factures globales
-        On a constaté des lignes dupliquées dans les fichiers détails, 
-        on va regrouper les lignes par factures, sans les duplicatas puis afficher les factures ou il y a duplicatas
-        """
+    ## Vérification des factures globales
+    On a constaté des lignes dupliquées dans les fichiers détails, 
+    on va regrouper les lignes par factures, sans les duplicatas puis afficher les factures ou il y a duplicatas
+    """
     )
     return
 
 
-@app.cell
-def _():
-    def regroupement_factures_globales(df):
-        factures = df.copy()
+@app.function
+def regroupement_factures_globales(df):
+    factures = df.copy()
 
-        df_grouped = (
-            factures
-            .groupby(["Num_Facture", "Marque", "Taux_TVA_Applicable", "Source"])["Montant_HT"]
-            .sum()
-            .unstack(["Marque", "Taux_TVA_Applicable","Source"])  # Création de colonnes pour chaque combinaison
-            .fillna(0)  # Remplacer les NaN par 0
-            .reset_index()
-        )
-        df_grouped.columns = ['_'.join(map(str, col)) if isinstance(col, tuple) else col for col in df_grouped.columns]
-        return df_grouped
-    return (regroupement_factures_globales,)
+    df_grouped = (
+        factures
+        .groupby(["Num_Facture", "Marque", "Taux_TVA_Applicable", "Source"])["Montant_HT"]
+        .sum()
+        .unstack(["Marque", "Taux_TVA_Applicable","Source"])  # Création de colonnes pour chaque combinaison
+        .fillna(0)  # Remplacer les NaN par 0
+        .reset_index()
+    )
+    df_grouped.columns = ['_'.join(map(str, col)) if isinstance(col, tuple) else col for col in df_grouped.columns]
+    return df_grouped
 
 
 @app.cell
-def _(factures_réseau, regroupement_factures_globales):
+def _(factures_réseau):
     factures_globales = regroupement_factures_globales(factures_réseau)
     factures_globales
     return (factures_globales,)
@@ -198,10 +184,10 @@ def _(duplicates, factures_globales):
 def _(mo):
     mo.md(
         r"""
-        # Turpe Facturé mensuel
+    # Turpe Facturé mensuel
 
-        On vient décomposer chaque ligne sur les mois qu'elle couvre. Ces mois sont ceux inclus ou partiellement inclus dans la période définie par (Date_Debut, Date_Fin). Le montant HT de chaque ligne est amputé aux mois qu'elle couvre au pro-rata de jours du mois sur le total de jours.
-        """
+    On vient décomposer chaque ligne sur les mois qu'elle couvre. Ces mois sont ceux inclus ou partiellement inclus dans la période définie par (Date_Debut, Date_Fin). Le montant HT de chaque ligne est amputé aux mois qu'elle couvre au pro-rata de jours du mois sur le total de jours.
+    """
     )
     return
 
@@ -237,7 +223,7 @@ def _(factures_réseau, pd):
     factures_expanded["Montant_HT_Mensuel"] = factures_expanded["Montant_HT"] * (factures_expanded["Jours_Mois"] / factures_expanded["Jours_Totaux"])
 
     factures_expanded
-    return all_months, df, factures_expanded
+    return (factures_expanded,)
 
 
 @app.cell
@@ -293,7 +279,7 @@ def _(df_result, factures_réseau, np):
     )
 
     remensualisé.round(2)
-    return regroupement_mensuel_complet, remensualisé
+    return
 
 
 @app.cell

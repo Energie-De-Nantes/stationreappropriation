@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "stationreappropriation"
-version = "0.6.0"
+version = "0.6.1"
 description = "La Station de Réappropriation est un registre centralisé d'outils autonomes, répondant chacun à un besoin spécifique du commun."
 authors = ["Virgile Daugé <virgile.dauge@pm.me>"]
 license = "GPLv3"
@@ -8,7 +8,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
-marimo = "^0.11.6"
+marimo = ">=0.11.6"
 pandas = "^2.2.3"
 altair = "^5.4.1"
 python-dotenv = "^1.0.1"
@@ -24,6 +24,8 @@ fastparquet = "^2024.11.0"
 tabulate = "^0.9.0"
 babel = "^2.17.0"
 pandera = {extras = ["io"], version = "^0.24.0"}
+pyarrow = "^20.0.0"
+narwhals = "1.40.0"
 
 [tool.poetry.scripts]
 stationreappropriation-setup-autostart = "stationreappropriation.scripts.setup_autostart:main"

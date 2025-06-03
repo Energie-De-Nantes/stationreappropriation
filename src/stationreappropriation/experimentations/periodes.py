@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.31"
+__generated_with = "0.13.15"
 app = marimo.App(width="medium")
 
 
@@ -27,18 +27,7 @@ def _():
     env = load_prefixed_dotenv(prefix='SR_')
     flux_path = Path('~/data/flux_enedis_v2/').expanduser()
     flux_path.mkdir(parents=True, exist_ok=True)
-    return (
-        MonthBegin,
-        Path,
-        env,
-        flux_path,
-        format_date,
-        iterative_process_flux,
-        load_prefixed_dotenv,
-        mo,
-        np,
-        pd,
-    )
+    return flux_path, iterative_process_flux, mo
 
 
 @app.cell
@@ -47,7 +36,7 @@ def _(flux_path, iterative_process_flux):
 
     historique = lire_flux_c15(iterative_process_flux('C15', flux_path / 'C15'))
     historique = historique[sorted(historique.columns)]
-    return historique, lire_flux_c15
+    return (historique,)
 
 
 @app.cell
@@ -56,7 +45,7 @@ def _(flux_path, iterative_process_flux):
 
     relevés = lire_flux_r151(iterative_process_flux('R151', flux_path / 'R151'))
     relevés
-    return lire_flux_r151, relevés
+    return (relevés,)
 
 
 @app.cell(hide_code=True)
@@ -71,7 +60,7 @@ def _(historique):
 
     ruptures = dpr(historique)
     ruptures
-    return dpr, ruptures
+    return (ruptures,)
 
 
 @app.cell
@@ -90,7 +79,7 @@ def _(mo):
 def _(ruptures):
     from electricore.core.périmètre import inserer_evenements_facturation as ief
     etendu = ief(ruptures)
-    return etendu, ief
+    return (etendu,)
 
 
 @app.cell(hide_code=True)
@@ -103,11 +92,11 @@ def _(mo):
 def _(mo):
     mo.md(
         """
-        On a deux choses à calculer ici. La quantité de produit abonnement journalier, par puissance. 
-        Le Turpe fixe, qui dépend de la FTA et de la puissance.
+    On a deux choses à calculer ici. La quantité de produit abonnement journalier, par puissance. 
+    Le Turpe fixe, qui dépend de la FTA et de la puissance.
 
-        Pour cela, on va s'appuyer sur les événements survenus dans le périmètre, particulièrement ceux qui ont un impact sur le Turpe fixe, qui ont été taggués avec _impact_turpe_fixe = True_.
-        """
+    Pour cela, on va s'appuyer sur les événements survenus dans le périmètre, particulièrement ceux qui ont un impact sur le Turpe fixe, qui ont été taggués avec _impact_turpe_fixe = True_.
+    """
     )
     return
 
@@ -124,7 +113,7 @@ def _(etendu):
     periodes = gpa(etendu)
     # periodes.rename(columns={'Formule_Tarifaire_Acheminement': 'FTA'})
     periodes
-    return gpa, periodes
+    return (periodes,)
 
 
 @app.cell(hide_code=True)
@@ -139,7 +128,7 @@ def _(periodes):
     règles = load_turpe_rules()
     periodes_turpe = ajouter_turpe_fixe(periodes, règles)
     periodes_turpe
-    return ajouter_turpe_fixe, load_turpe_rules, periodes_turpe, règles
+    return (periodes_turpe,)
 
 
 @app.cell
@@ -160,14 +149,14 @@ def _(relevés, ruptures):
         ruptures["impact_energie"] | ruptures["impact_turpe_variable"]
     ].copy()
     r = relevés.sort_values(["pdl", "Date_Releve"]).copy()
-    return evenements_impactants, r
+    return (evenements_impactants,)
 
 
 @app.cell
 def _(evenements_impactants):
     from electricore.core.périmètre import extraire_releves_evenements
     extraire_releves_evenements(evenements_impactants)
-    return (extraire_releves_evenements,)
+    return
 
 
 if __name__ == "__main__":
