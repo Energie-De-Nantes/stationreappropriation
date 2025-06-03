@@ -256,7 +256,7 @@ def _(mo):
 @app.cell
 def fusion_metier_odoo(deb, draft_orders, fin, métier, required_cols):
     merged_data = draft_orders.merge(métier[required_cols], left_on='x_pdl', right_on='pdl', how='left')
-    days_in_month = (fin.date() - deb.date()).days + 1
+    days_in_month = (fin.date() - deb.date()).days
     merged_data['update_dates'] = merged_data['j'] != days_in_month
     merged_data['missing_data'] = merged_data['missing_data'].astype(bool).fillna(True)
     merged_data['something_wrong'] = (merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)
@@ -424,7 +424,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def visualisation_lignes_facture(abo, base, hc, hp, lines, mo):
     mo.accordion({
         'HC':hc, 

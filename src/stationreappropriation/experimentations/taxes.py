@@ -1,11 +1,11 @@
 import marimo
 
-__generated_with = "0.9.10"
+__generated_with = "0.11.20"
 app = marimo.App(width="medium")
 
 
 @app.cell(hide_code=True)
-def __():
+def _():
     import marimo as mo
     import pandas as pd
     import numpy as np
@@ -34,7 +34,7 @@ def __():
 
 
 @app.cell(hide_code=True)
-def __(env, flux_path, mo):
+def _(env, flux_path, mo):
     from stationreappropriation.marimo_utils import download_with_marimo_progress as _dl
 
     _processed, _errors = _dl(env, ['R15', 'R151', 'C15', 'F15', 'F12'], flux_path)
@@ -44,7 +44,7 @@ def __(env, flux_path, mo):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     options = {"T1": 1, "T2": 2, "T3": 3, "T4": 4}
     radio = mo.ui.radio(options=options, label='Choisi le Trimestre', value="T1")
     radio
@@ -52,7 +52,7 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(mo, radio):
+def _(mo, radio):
     from stationreappropriation.utils import gen_trimester_dates
     _default_start, _default_end = gen_trimester_dates(radio.value)
     start_date_picker = mo.ui.date(value=_default_start)
@@ -65,40 +65,57 @@ def __(mo, radio):
     return end_date_picker, gen_trimester_dates, start_date_picker
 
 
-@app.cell(hide_code=True)
-def __(end_date_picker, pd, start_date_picker):
-    start_time = pd.to_datetime(start_date_picker.value)
-    end_time = pd.to_datetime(end_date_picker.value)
-    return end_time, start_time
+@app.cell
+def _(end_date_picker, pd, start_date_picker):
+    from zoneinfo import ZoneInfo
+    PARIS_TZ = ZoneInfo("Europe/Paris")
+    deb = pd.to_datetime(start_date_picker.value).tz_localize(PARIS_TZ)
+    fin = pd.to_datetime(end_date_picker.value).tz_localize(PARIS_TZ)
+    return PARIS_TZ, ZoneInfo, deb, fin
 
 
 @app.cell
-def __(mo):
+def _(env, pd):
+    from stationreappropriation.odoo import get_pdls
+    pdls = get_pdls(env)
+    _local = pd.DataFrame({
+        'sale.order_id': [0, 0, 0],  # Exemple d'identifiant de commande
+        'pdl': ['14295224261882', '50070117855585', '50000508594660']           # Exemple de PDL
+    })
+
+    # Ajouter la nouvelle ligne à la dataframe avec pd.concat
+    pdls = pd.concat([pdls, _local], ignore_index=True)
+    return get_pdls, pdls
+
+
+@app.cell
+def _(mo):
     mo.md("""# Résultats""")
     return
 
 
 @app.cell(hide_code=True)
-def __(np, taxes):
-    conditions = [
-        taxes['Date_Derniere_Modification_FTA'] >= taxes['d_date'],
-        taxes['Date_Derniere_Modification_FTA'] <= taxes['f_date'],
-    ]
+def _(deb, fin, flux_path, process_flux):
+    from electricore.core.périmètre.fonctions import extraire_historique_à_date, extraire_modifications_impactantes
+    from electricore.inputs.flux import lire_flux_c15
 
-    conditions = [
-        taxes['Date_Evenement'] >= taxes['d_date'],
-        taxes['Date_Evenement'] <= taxes['f_date'],
-        taxes['Evenement_Declencheur'].isin(['MCT', 'MDCTR'])
-    ]
+    historique = lire_flux_c15(process_flux('C15', flux_path / 'C15'))
+    # historique['Marque'] = historique['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
+    historique = historique[sorted(historique.columns)]
 
-    _mask = np.logical_and.reduce(conditions)
-    changements_impactants = taxes[_mask]
-    changements_impactants
-    return changements_impactants, conditions
+    mci = extraire_modifications_impactantes(deb=deb, historique=extraire_historique_à_date(fin=fin, historique=historique))
+    mci
+    return (
+        extraire_historique_à_date,
+        extraire_modifications_impactantes,
+        historique,
+        lire_flux_c15,
+        mci,
+    )
 
 
 @app.cell
-def __(c15, changements_impactants, end_time, np):
+def _(c15, changements_impactants, end_time, np):
     _cond = [
         c15['pdl'].isin(changements_impactants['pdl']),
         c15['Date_Evenement'] <= end_time,
@@ -108,26 +125,26 @@ def __(c15, changements_impactants, end_time, np):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""Note pour plus tard, dans le cas ou l'on a une MCT, on peut diviser la ligne du pdl en deux lignes, avec des puissances et ou FTA spécifiques, ainsi que le nb de jours associés à cette configuration.""")
     return
 
 
 @app.cell
-def __(c15_finperiode):
+def _(c15_finperiode):
     c15_finperiode
     return
 
 
 @app.cell(hide_code=True)
-def __(taxes):
+def _(taxes):
     grouped_df = taxes.groupby('Marque')['turpe_fix'].sum().round().reset_index()
     grouped_df
     return (grouped_df,)
 
 
 @app.cell(hide_code=True)
-def __(accise, assiete_accise_trunc, erreurs, mo, taxes, tcta):
+def _(accise, assiete_accise_trunc, erreurs, mo, taxes, tcta):
     assiette_cta = round(sum(taxes['turpe_fix']))
     cta = round(assiette_cta*tcta)
     mo.callout(mo.md(f"""Assiette CTA : **{assiette_cta}€**\n
@@ -139,7 +156,7 @@ def __(accise, assiete_accise_trunc, erreurs, mo, taxes, tcta):
 
 
 @app.cell(hide_code=True)
-def __(erreurs, mo, taxes):
+def _(erreurs, mo, taxes):
     mo.vstack([mo.accordion(erreurs),
                mo.md('Tableau calcul CTA'),
                taxes,
@@ -148,19 +165,19 @@ def __(erreurs, mo, taxes):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""# Détail des calculs""")
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""## CTA""")
     return
 
 
 @app.cell
-def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
+def _(end_date_picker, flux_path, pd, process_flux, start_date_picker):
     c15 = process_flux('C15', flux_path / 'C15')
     _filtered_c15 = c15[c15['Type_Evenement']=='CONTRAT'].copy()
     _filtered_c15 = _filtered_c15[_filtered_c15['Date_Evenement'] <= pd.to_datetime(end_date_picker.value)]
@@ -177,20 +194,20 @@ def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md("""## Changements dans la période""")
     return
 
 
 @app.cell
-def __(c15_period):
+def _(c15_period):
     c15_mct = c15_period[c15_period['Evenement_Declencheur'].isin(['MCT'])]
     c15_mct
     return (c15_mct,)
 
 
 @app.cell
-def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
+def _(end_date_picker, flux_path, pd, process_flux, start_date_picker):
     from stationreappropriation.utils import get_consumption_names
 
     r151 = process_flux('R151', flux_path / 'R151')
@@ -212,7 +229,7 @@ def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
 
 
 @app.cell(hide_code=True)
-def __(end_date_picker, start_date_picker):
+def _(end_date_picker, start_date_picker):
     from stationreappropriation.graphics import plot_data_merge
 
     _graphique_data = [
@@ -380,7 +397,7 @@ def calcul_consos(DataFrame, get_consumption_names, indexes, np, pd):
 
 
 @app.cell(hide_code=True)
-def __(mo, np, pd):
+def _(mo, np, pd):
     # Création du DataFrame avec les données du tableau
     _b = {
         "b": ["CU4", "CUST", "MU4", "MUDT", "LU", "CU4 – autoproduction collective", "MU4 – autoproduction collective"],
@@ -515,7 +532,7 @@ def calcul_taxes(b, c, cc, cg, consos, env, np, tcta):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(
         """
         L'assiette en taxes représente la base sur laquelle un impôt ou une taxe est calculé. C'est la valeur ou la quantité (comme le revenu, la valeur d'un bien, ou une quantité de consommation) sur laquelle s'applique le taux de la taxe pour déterminer le montant dû. 
@@ -527,7 +544,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(f"""
     Les taux de la CTA sont fixés par arrêté et constituent un pourcentage de la part fixe hors taxe
     du tarif d’utilisation des réseaux de transport et de distribution d’électricité (TURPE).
@@ -540,7 +557,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(
         """
         # TICFE
@@ -566,7 +583,7 @@ def __(mo):
 
 
 @app.cell
-def __(env, pd):
+def _(env, pd):
     from stationreappropriation.odoo import OdooConnector
 
     with OdooConnector(env) as odoo:
@@ -584,7 +601,7 @@ def __(env, pd):
 
 
 @app.cell
-def __(end_time, lines, start_time):
+def _(end_time, lines, start_time):
     # Filtrer les lignes qui sont dans le trimestre
     filtered_data = lines[(lines["date"] >= start_time) & (lines["date"] <= end_time)]
     filtered_data
@@ -592,7 +609,7 @@ def __(end_time, lines, start_time):
 
 
 @app.cell
-def __(filtered_data):
+def _(filtered_data):
     import math
     assiete_accise = sum(filtered_data['quantity']) / 1000
     assiete_accise_trunc = math.trunc(assiete_accise * 1000) / 1000
@@ -602,7 +619,7 @@ def __(filtered_data):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""Note pour plus tard, ici, on ne prend pas en compte les pro/pas pros, Attention, il faudra une méthode pour les distinguer plus tard.""")
     return
 

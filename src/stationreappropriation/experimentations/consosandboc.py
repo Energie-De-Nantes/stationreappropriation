@@ -306,12 +306,7 @@ def _(complet, pd):
 
 @app.cell(hide_code=True)
 def __(mo):
-    mo.md(
-        """
-        ## Calcul des taxes
-
-        """
-    )
+    mo.md("""## Calcul des taxes""")
     return
 
 

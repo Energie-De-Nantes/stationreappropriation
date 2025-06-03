@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.9.14"
+__generated_with = "0.9.34"
 app = marimo.App(width="medium")
 
 
@@ -150,13 +150,13 @@ def __(end_date_picker, f15, pd, start_date_picker):
 
 @app.cell
 def __(mo):
-    mo.md(r"""#### Prestations uniquement """)
+    mo.md(r"""#### Prestations uniquement""")
     return
 
 
 @app.cell
 def __(f15_periode):
-    f15_periode[f15_periode['Unite'] == 'UNITE'] 
+    f15_periode[f15_periode['Unite'] == 'UNITE']
     return
 
 

@@ -334,10 +334,5 @@ def _(deb, fin, historique, relevés):
     return factu, facturation
 
 
-@app.cell
-def _():
-    return
-
-
 if __name__ == "__main__":
     app.run()

@@ -1,11 +1,11 @@
 import marimo
 
-__generated_with = "0.9.34"
+__generated_with = "0.11.14"
 app = marimo.App(width="medium")
 
 
 @app.cell(hide_code=True)
-def __():
+def _():
     import marimo as mo
     import pandas as pd
     import numpy as np
@@ -37,13 +37,8 @@ def __():
     )
 
 
-@app.cell
-def __():
-    return
-
-
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         """
         ## Délimitation temporelle
@@ -55,14 +50,14 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(gen_last_months, mo):
+def _(gen_last_months, mo):
     radio = mo.ui.radio(options=gen_last_months(), label='Choisi le Mois a traiter')
     radio
     return (radio,)
 
 
 @app.cell(hide_code=True)
-def __(gen_previous_month_boundaries, mo, radio):
+def _(gen_previous_month_boundaries, mo, radio):
     default_start, default_end = radio.value if radio.value is not None else gen_previous_month_boundaries()
     start_date_picker = mo.ui.date(value=default_start)
     end_date_picker = mo.ui.date(value=default_end)
@@ -75,9 +70,7 @@ def __(gen_previous_month_boundaries, mo, radio):
 
 
 @app.cell
-def __(lignes_f12, lignes_f15):
-
-
+def _(lignes_f12, lignes_f15):
     # Fusionner
     recap = lignes_f15.merge(lignes_f12, on='Taux_TVA_Applicable', how='outer', suffixes=('_f15', '_f12'))
     recap['total'] = recap[[c for c in recap.columns if c.startswith('Montant_HT')]].sum(axis=1, min_count=1)
@@ -86,19 +79,19 @@ def __(lignes_f12, lignes_f15):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""# Détails""")
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""## Identification des Marques""")
     return
 
 
 @app.cell
-def __(env, mo, pd):
+def _(env, mo, pd):
     from stationreappropriation.odoo import get_pdls
     pdls = get_pdls(env)
     _local = pd.DataFrame({
@@ -114,20 +107,13 @@ def __(env, mo, pd):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""## F15""")
     return
 
 
 @app.cell
-def __(
-    end_date_picker,
-    flux_path,
-    pd,
-    pdls,
-    process_flux,
-    start_date_picker,
-):
+def _(end_date_picker, flux_path, pd, pdls, process_flux, start_date_picker):
     f15 = process_flux('F15', flux_path / 'F15')
     f15['Marque'] = f15['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     f15['start_date'] = pd.to_datetime(start_date_picker.value)
@@ -142,7 +128,7 @@ def __(
 
 
 @app.cell
-def __(convert_tva, f15):
+def _(convert_tva, f15):
     f15_zel = f15[f15['Marque']=='ZEL'].assign(Taux_TVA_Applicable=f15['Taux_TVA_Applicable'].apply(convert_tva))
     # f15_zel['Taux_TVA_Applicable'] = f15_zel['Taux_TVA_Applicable'].apply(convert_tva)
     f15_zel
@@ -150,21 +136,14 @@ def __(convert_tva, f15):
 
 
 @app.cell
-def __(f15_zel):
+def _(f15_zel):
     lignes_f15 = f15_zel[['Taux_TVA_Applicable', 'Montant_HT']].groupby('Taux_TVA_Applicable').sum()
     lignes_f15
     return (lignes_f15,)
 
 
 @app.cell
-def __(
-    end_date_picker,
-    flux_path,
-    pd,
-    pdls,
-    process_flux,
-    start_date_picker,
-):
+def _(end_date_picker, flux_path, pd, pdls, process_flux, start_date_picker):
     f12 = process_flux('F12', flux_path / 'F12')
     f12['Marque'] = f12['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     f12['Montant_HT'] = pd.to_numeric(f12['Montant_HT'])
@@ -179,13 +158,13 @@ def __(
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md("""## Filtrage ZEL et Uniformisation des Taux TVA""")
     return
 
 
 @app.cell
-def __():
+def _():
     # Convertir en float tout sauf 'NS'
     def convert_tva(value):
         try:
@@ -196,21 +175,21 @@ def __():
 
 
 @app.cell
-def __(convert_tva, f12):
+def _(convert_tva, f12):
     f12_zel = f12[f12['Marque']=='ZEL'].assign(Taux_TVA_Applicable=f12['Taux_TVA_Applicable'].apply(convert_tva))
     f12_zel
     return (f12_zel,)
 
 
 @app.cell
-def __(f12_zel):
+def _(f12_zel):
     lignes_f12 = f12_zel[['Taux_TVA_Applicable', 'Montant_HT']].groupby('Taux_TVA_Applicable').sum()
     lignes_f12
     return (lignes_f12,)
 
 
 @app.cell
-def __():
+def _():
     return
 
 
