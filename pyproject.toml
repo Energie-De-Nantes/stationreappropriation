@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "stationreappropriation"
-version = "0.6.1"
+version = "0.6.2"
 description = "La Station de Réappropriation est un registre centralisé d'outils autonomes, répondant chacun à un besoin spécifique du commun."
 authors = ["Virgile Daugé <virgile.dauge@pm.me>"]
 license = "GPLv3"

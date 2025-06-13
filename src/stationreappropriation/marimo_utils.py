@@ -29,7 +29,7 @@ def download_with_marimo_progress(
     Returns:
     list[tuple[str, str]]: A list of tuples containing (zip_name, task_type) of newly processed files.
     """
-    required = ['FTP_ADDRESS', 'FTP_USER', 'FTP_PASSWORD', 'AES_KEY', 'AES_IV'] + [f'FTP_{k}_DIR' for k in tasks]
+    required = ['FTP_ADDRESS', 'FTP_USER', 'FTP_PASSWORD', 'AES_KEY', 'AES_IV'] # + [f'FTP_{k}_DIR' for k in tasks]
     config = check_required(config, required)
 
     key = bytes.fromhex(config['AES_KEY'])
@@ -55,7 +55,7 @@ def download_with_marimo_progress(
 
     try:
         for task_type in tasks:
-            distant = '/flux_enedis/' + str(config[f'FTP_{task_type}_DIR'])
+            distant = '/flux_enedis/' + str(config.get(f'FTP_{task_type}_DIR', task_type))
             local_dir = local.joinpath(task_type)
             local_dir.mkdir(parents=True, exist_ok=True)
 
