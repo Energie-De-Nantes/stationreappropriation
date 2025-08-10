@@ -1,11 +1,11 @@
 import marimo
 
-__generated_with = "0.9.34"
+__generated_with = "0.13.15"
 app = marimo.App(width="medium")
 
 
 @app.cell(hide_code=True)
-def __():
+def _():
     import marimo as mo
     import pandas as pd
     import numpy as np
@@ -34,15 +34,10 @@ def __():
     )
     logger = logging.getLogger(__name__)
     return (
-        Path,
-        date,
         env,
         flux_path,
         gen_last_months,
         gen_previous_month_boundaries,
-        load_prefixed_dotenv,
-        logger,
-        logging,
         mo,
         np,
         pd,
@@ -51,7 +46,7 @@ def __():
 
 
 @app.cell
-def __(env, pd):
+def _(env, pd):
     from stationreappropriation.odoo import get_pdls
     pdls = get_pdls(env)
     _local = pd.DataFrame({
@@ -61,11 +56,11 @@ def __(env, pd):
 
     # Ajouter la nouvelle ligne à la dataframe avec pd.concat
     pdls = pd.concat([pdls, _local], ignore_index=True)
-    return get_pdls, pdls
+    return (pdls,)
 
 
 @app.cell(hide_code=True)
-def __(env, flux_path, mo):
+def _(env, flux_path, mo):
     from stationreappropriation.marimo_utils import download_with_marimo_progress as _dl
 
     _processed, _errors = _dl(env, ['R15', 'R151', 'C15', 'F15', 'F12'], flux_path)
@@ -75,14 +70,14 @@ def __(env, flux_path, mo):
 
 
 @app.cell
-def __(gen_last_months, mo):
+def _(gen_last_months, mo):
     radio = mo.ui.radio(options=gen_last_months(), label='Choisi le Mois a traiter')
     radio
     return (radio,)
 
 
 @app.cell(hide_code=True)
-def __(gen_previous_month_boundaries, mo, radio):
+def _(gen_previous_month_boundaries, mo, radio):
     default_start, default_end = radio.value if radio.value is not None else gen_previous_month_boundaries()
     start_date_picker = mo.ui.date(value=default_start)
     end_date_picker = mo.ui.date(value=default_end)
@@ -91,18 +86,18 @@ def __(gen_previous_month_boundaries, mo, radio):
         Tu peux aussi choisir directement les dates de début {start_date_picker} et de fin {end_date_picker}\n
         """
     )
-    return default_end, default_start, end_date_picker, start_date_picker
+    return end_date_picker, start_date_picker
 
 
 @app.cell(hide_code=True)
-def __(end_date_picker, pd, start_date_picker):
+def _(end_date_picker, pd, start_date_picker):
     start_time = pd.to_datetime(start_date_picker.value)
     end_time = pd.to_datetime(end_date_picker.value)
-    return end_time, start_time
+    return (end_time,)
 
 
 @app.cell(hide_code=True)
-def __(np, taxes):
+def _(np, taxes):
     conditions = [
         taxes['Date_Evenement'] >= taxes['d_date'],
         taxes['Date_Evenement'] <= taxes['f_date'],
@@ -113,11 +108,11 @@ def __(np, taxes):
     _mask = np.logical_and.reduce(conditions)
     changements_impactants = taxes[_mask]
     changements_impactants
-    return changements_impactants, conditions
+    return (changements_impactants,)
 
 
 @app.cell
-def __(c15, changements_impactants, end_time, np):
+def _(c15, changements_impactants, end_time, np):
     _cond = [
         c15['pdl'].isin(changements_impactants['pdl']),
         c15['Date_Evenement'] <= end_time,
@@ -127,19 +122,19 @@ def __(c15, changements_impactants, end_time, np):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""Note pour plus tard, dans le cas ou l'on a une MCT, on peut diviser la ligne du pdl en deux lignes, avec des puissances et ou FTA spécifiques, ainsi que le nb de jours associés à cette configuration.""")
     return
 
 
 @app.cell
-def __(c15_finperiode):
+def _(c15_finperiode):
     c15_finperiode
     return
 
 
 @app.cell(hide_code=True)
-def __(erreurs, mo, taxes):
+def _(erreurs, mo, taxes):
     mo.vstack([mo.accordion(erreurs),
                mo.md('Tableau récapitulatif'),
                taxes[taxes['Marque']=='EDN'],
@@ -148,7 +143,7 @@ def __(erreurs, mo, taxes):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(r"""# Détail des calculs""")
     return
 
@@ -171,27 +166,27 @@ def c15(end_date_picker, flux_path, pd, process_flux, start_date_picker):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md("""## Changements dans la période""")
     return
 
 
 @app.cell
-def __(c15_period):
+def _(c15_period):
     c15_mct = c15_period[c15_period['Evenement_Declencheur'].isin(['MCT'])]
     c15_mct
-    return (c15_mct,)
+    return
 
 
 @app.cell
-def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
+def _(end_date_picker, flux_path, pd, process_flux, start_date_picker):
     from stationreappropriation.utils import get_consumption_names
 
     r151 = process_flux('R151', flux_path / 'R151')
 
     # Dans le r151, les index sont donnés en Wh, ce qui n'est pas le cas dans les autres flux, on va donc passer en kWh. On ne facture pas des fractions de Kwh dans tous les cas. 
     conso_cols = [c for c in get_consumption_names() if c in r151]
-    #r151[conso_cols] = r151[conso_cols].apply(pd.to_numeric, errors='coerce')
+    r151[conso_cols] = r151[conso_cols].apply(pd.to_numeric, errors='coerce')
     r151[conso_cols] = (r151[conso_cols] / 1000).round().astype('Int64')
     r151['Unité'] = 'kWh'
 
@@ -202,11 +197,11 @@ def __(end_date_picker, flux_path, pd, process_flux, start_date_picker):
     end_index = r151.copy()
     end_index['end_date'] = pd.to_datetime(end_date_picker.value)
     end_index = end_index[end_index['Date_Releve']==end_index['end_date']]
-    return conso_cols, end_index, get_consumption_names, r151, start_index
+    return conso_cols, end_index, get_consumption_names, start_index
 
 
 @app.cell(hide_code=True)
-def __(end_date_picker, start_date_picker):
+def _(end_date_picker, start_date_picker):
     from stationreappropriation.graphics import plot_data_merge
 
     _graphique_data = [
@@ -217,7 +212,7 @@ def __(end_date_picker, start_date_picker):
     ]
 
     plot_data_merge(_graphique_data, 'pdl')
-    return (plot_data_merge,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -379,7 +374,7 @@ def calcul_consos(DataFrame, get_consumption_names, indexes, np, pd):
 
 
 @app.cell(hide_code=True)
-def __(mo, np, pd):
+def _(mo, np, pd):
     # Création du DataFrame avec les données du tableau
     _b = {
         "b": ["CU4", "CUST", "MU4", "MUDT", "LU", "CU4 – autoproduction collective", "MU4 – autoproduction collective"],
@@ -471,7 +466,7 @@ def __(mo, np, pd):
         matrice_df,
         ]
     )
-    return P, b, c, cc, cg, matrice, matrice_df, tcta
+    return b, c, cc, cg, tcta
 
 
 @app.cell(hide_code=True)
@@ -529,20 +524,20 @@ def param_odoo(mo):
 
 
 @app.cell(hide_code=True)
-def __(env, mo):
+def _(env, mo):
     mo.md(
         f"""
-        ## Lancer le cycle de facturation
-        ## Récupération des Abonnements à facturer
+    ## Lancer le cycle de facturation
+    ## Récupération des Abonnements à facturer
 
-        On va chercher tous les abonnements en cours, dont le statut de facturation est _Facture brouillon créée_ ([voir vue kanban]({env['ODOO_URL']}web#action=437&model=sale.order&view_type=kanban))
-        """
+    On va chercher tous les abonnements en cours, dont le statut de facturation est _Facture brouillon créée_ ([voir vue kanban]({env['ODOO_URL']}web#action=437&model=sale.order&view_type=kanban))
+    """
     )
     return
 
 
 @app.cell(hide_code=True)
-def __(env, mo):
+def _(env, mo):
     from stationreappropriation.odoo import get_enhanced_draft_orders
     draft_orders = get_enhanced_draft_orders(env)
     _stop_msg = mo.callout(mo.md(
@@ -559,17 +554,17 @@ def __(env, mo):
 
     mo.stop(draft_orders.empty, _stop_msg)
     draft_orders
-    return draft_orders, get_enhanced_draft_orders
+    return (draft_orders,)
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md("""# Fusion des données Enedis et Odoo""")
     return
 
 
 @app.cell(hide_code=True)
-def __(draft_orders, end_date_picker, start_date_picker, taxes):
+def _(draft_orders, end_date_picker, start_date_picker, taxes):
     _required_cols = ['HP', 'HC', 'BASE', 'j', 'd_date', 'f_date', 'Type_Compteur', 'Num_Compteur', 'Num_Depannage', 'pdl', 'turpe_fix', 'turpe_var', 'turpe', 'missing_data']
     merged_data = draft_orders.merge(taxes[_required_cols], left_on='x_pdl', right_on='pdl', how='left')
     days_in_month = (end_date_picker.value - start_date_picker.value).days
@@ -583,29 +578,29 @@ def __(draft_orders, end_date_picker, start_date_picker, taxes):
     # merged_data['j'] = merged_data['j'].astype(float)
     # merged_data.loc[_quickfix_mask, 'j'] = 30.42
     merged_data
-    return days_in_month, merged_data
+    return (merged_data,)
 
 
 @app.cell
-def __(merged_data):
+def _(merged_data):
     merged_data[(merged_data['missing_data'] == True) & (merged_data['x_lisse'] == False)]
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     mo.md(
         r"""
-        ## Donnéés manquantes
+    ## Donnéés manquantes
 
-        Pour les pdl suivants, il va falloir calculer a la main :
-        """
+    Pour les pdl suivants, il va falloir calculer a la main :
+    """
     )
     return
 
 
 @app.cell(hide_code=True)
-def __(merged_data):
+def _(merged_data):
     merged_data[merged_data['something_wrong']] 
     #if not missing_data.empty : 
         #... # TODO CALLOUT ATTENTION, IL FAUT TRAITER CES CAS MANUELLEMENT : + dataframe
@@ -627,29 +622,29 @@ def confirm_maj_odoo(mo, safety_switch):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
-        Truc à mettre à jour
+    Truc à mettre à jour
 
-        Dans les abonnements (_sale.order_) :
+    Dans les abonnements (_sale.order_) :
 
-         - Statut de facturation (_x_invoicing_state_) = 'populated' pour les abo dont on doit vérifier les factures
-         - Statut de facturation (_x_invoicing_state_) = 'checked' pour les autres abo
+     - Statut de facturation (_x_invoicing_state_) = 'populated' pour les abo dont on doit vérifier les factures
+     - Statut de facturation (_x_invoicing_state_) = 'checked' pour les autres abo
 
-        Dans les factures (_account.move_) :
+    Dans les factures (_account.move_) :
 
-         - x_turpe
-         - x_start_invoice_period
-         - x_end_invoice_period
-         - x_type_compteur
-         - x_num_serie_compteur
+     - x_turpe
+     - x_start_invoice_period
+     - x_end_invoice_period
+     - x_type_compteur
+     - x_num_serie_compteur
 
-         Dans les lignes comptables des factures (_account.move.line_) :
+     Dans les lignes comptables des factures (_account.move.line_) :
 
-         - abonnement (jours) : réel si pas lissé ou lissé et MES ou RES
-         - conso : uniquement si pas lissé
-        """
+     - abonnement (jours) : réel si pas lissé ou lissé et MES ou RES
+     - conso : uniquement si pas lissé
+    """
     )
     return
 
@@ -668,7 +663,7 @@ def prep_orders(merged_data, mo, np, pd):
 
 
 @app.cell(hide_code=True)
-def __(merged_data, mo):
+def _(merged_data, mo):
     _invoices = merged_data[['last_invoice_id', 
                             'turpe', 
                             'd_date', 'f_date', 
@@ -697,7 +692,7 @@ def __(merged_data, mo):
 
 
 @app.cell(hide_code=True)
-def __(merged_data, mo, pd):
+def _(merged_data, mo, pd):
     update_conso_df = merged_data[(~merged_data['x_lisse']) & (merged_data['something_wrong']==False)].copy()
     lines = []
     _hc = pd.DataFrame()
@@ -732,37 +727,31 @@ def __(merged_data, mo, pd):
         'base':_base, 
         'jours':_abo
     })
-    return do_update_qty, lines, update_conso_df
+    return (lines,)
 
 
 @app.cell
-def __(invoices, lines, mo, orders):
-    mo.md(f"""
-        updating #{len(orders)} orders
+def _(invoices, lines, mo, orders):
+    mo.md(
+        f"""
+    updating #{len(orders)} orders
 
-        updating #{len(invoices)} invoices
+    updating #{len(invoices)} invoices
 
-        updating #{len(lines)} lines
-    """)
+    updating #{len(lines)} lines
+    """
+    )
     return
 
 
 @app.cell
-def __():
+def _():
     # orders, invoices, lines
     return
 
 
 @app.cell
-def __(
-    OdooConnector,
-    env,
-    invoices,
-    mo,
-    orders,
-    red_button,
-    safety_switch,
-):
+def _(OdooConnector, env, invoices, mo, orders, red_button, safety_switch):
     mo.stop(not red_button.value)
 
     with OdooConnector(config=env, sim=safety_switch.value) as _odoo:
@@ -773,7 +762,7 @@ def __(
 
 
 @app.cell
-def __(OdooConnector, env, lines, mo, red_button, safety_switch):
+def _(OdooConnector, env, lines, mo, red_button, safety_switch):
     mo.stop(not red_button.value)
     with OdooConnector(config=env, sim=safety_switch.value) as _odoo:
         _odoo.update("account.move.line", lines)

@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.11.31"
+__generated_with = "0.14.11"
 app = marimo.App(width="medium")
 
 
@@ -20,18 +20,7 @@ def _():
     env = load_prefixed_dotenv(prefix='SR_')
     flux_path = Path('~/data/flux_enedis_v2/').expanduser()
     flux_path.mkdir(parents=True, exist_ok=True)
-    return (
-        Path,
-        date,
-        env,
-        flux_path,
-        iterative_process_flux,
-        load_prefixed_dotenv,
-        mo,
-        np,
-        pd,
-        process_flux,
-    )
+    return Path, env, flux_path, mo, pd, process_flux
 
 
 @app.cell
@@ -49,7 +38,7 @@ def choix_mois_facturation(mo):
     options = {"T1": 1, "T2": 2, "T3": 3, "T4": 4}
     radio = mo.ui.radio(options=options, label='Choisi le Trimestre', value="T1")
     radio
-    return options, radio
+    return (radio,)
 
 
 @app.cell(hide_code=True)
@@ -63,7 +52,7 @@ def choix_dates_facturation(mo, radio):
         Date de début {start_date_picker} et de fin {end_date_picker}\n
         """
     )
-    return end_date_picker, gen_trimester_dates, start_date_picker
+    return end_date_picker, start_date_picker
 
 
 @app.cell(hide_code=True)
@@ -72,7 +61,7 @@ def conversion_dates(end_date_picker, pd, start_date_picker):
     PARIS_TZ = ZoneInfo("Europe/Paris")
     deb = pd.to_datetime(start_date_picker.value).tz_localize(PARIS_TZ)
     fin = pd.to_datetime(end_date_picker.value).tz_localize(PARIS_TZ)
-    return PARIS_TZ, ZoneInfo, deb, fin
+    return PARIS_TZ, deb, fin
 
 
 @app.cell(hide_code=True)
@@ -86,7 +75,7 @@ def _(env, pd):
 
     # Ajouter la nouvelle ligne à la dataframe avec pd.concat
     pdls = pd.concat([pdls, _local], ignore_index=True)
-    return get_pdls, pdls
+    return (pdls,)
 
 
 @app.cell
@@ -133,14 +122,7 @@ def chargement_perimetre(deb, fin, flux_path, pdls, process_flux):
     _masque = (historique['pdl'].isin(mci['pdl'])) & (historique["Date_Evenement"] >= deb) & (historique["Date_Evenement"] <= fin) & historique['Evenement_Declencheur'].isin(['CFNE', 'CFNS', 'MES', 'PES', 'RES'])
     es_mci = historique[_masque]
     es_mci
-    return (
-        es_mci,
-        extraire_historique_à_date,
-        extraire_modifications_impactantes,
-        historique,
-        lire_flux_c15,
-        mci,
-    )
+    return es_mci, historique, mci
 
 
 @app.cell(hide_code=True)
@@ -148,7 +130,7 @@ def chargement_releves(flux_path, process_flux):
     from electricore.inputs.flux import lire_flux_r151
 
     relevés = lire_flux_r151(process_flux('R151', flux_path / 'R151'))
-    return lire_flux_r151, relevés
+    return (relevés,)
 
 
 @app.cell(hide_code=True)
@@ -173,12 +155,46 @@ def calcul_energies_taxes(deb, fin, historique, relevés):
     from electricore.core.services import facturation
     factu = facturation(deb, fin, historique, relevés, inclure_jour_fin=True)
     factu
-    return factu, facturation
+    return (factu,)
 
 
 @app.cell
 def _(factu):
     factu['turpe_fixe'].sum()
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""## Version 2""")
+    return
+
+
+@app.cell
+def _(historique):
+    from electricore.core.services import generer_periodes_completes
+    periodes_abo = generer_periodes_completes(historique=historique)
+    periodes_abo
+    return (periodes_abo,)
+
+
+@app.cell
+def _(periodes_abo):
+    t2 = periodes_abo[periodes_abo['mois_annee'].isin(['avril 2025', 'mai 2025', 'juin 2025'])]
+    return (t2,)
+
+
+@app.cell
+def _(pdls):
+    pdls
+    return
+
+
+@app.cell
+def _(pdls, t2):
+    t2_edn = t2[t2['pdl'].isin(pdls['pdl'])]
+    print(t2_edn['turpe_fixe'].sum())
+    t2_edn
     return
 
 
@@ -203,7 +219,7 @@ def _(PARIS_TZ, env, pd):
     # Calculer la date de consommation (date de facturation - 1 mois)
     lines["date"] = lines["date_facturation"] - pd.DateOffset(months=1)
     # lines
-    return OdooConnector, lines, odoo
+    return (lines,)
 
 
 @app.cell
@@ -219,7 +235,7 @@ def _(filtered_lines):
     assiete_accise = sum(filtered_lines['quantity']) / 1000
     assiete_accise_trunc = math.trunc(assiete_accise * 1000) / 1000
     assiete_accise_trunc
-    return assiete_accise, assiete_accise_trunc, math
+    return
 
 
 @app.cell
@@ -249,7 +265,8 @@ def _(file_browser, pd):
 
 @app.cell
 def _(zel_data):
-    zel_data[zel_data['Elements']=='CTA']['Quantité']
+    print(zel_data[zel_data['Elements']=='CTA']['Quantité'].sum())
+    print(zel_data[zel_data['Elements']=='CTA']['Montant'].sum())
     return
 
 
@@ -267,7 +284,8 @@ def _(accise_data):
 
 
 @app.cell
-def _():
+def _(accise_data):
+    print(accise_data['Montant'].sum())
     return
 
 

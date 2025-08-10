@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.13.15"
+__generated_with = "0.14.16"
 app = marimo.App(width="medium")
 
 
@@ -19,7 +19,7 @@ def choix_mois_facturation():
     env = load_prefixed_dotenv(prefix='SR_')
     flux_path = Path('~/data/flux_enedis_v2/').expanduser()
     flux_path.mkdir(parents=True, exist_ok=True)
-    return Path, env, flux_path, iterative_process_flux, mo, pd
+    return Path, env, flux_path, iterative_process_flux, mo, pd, process_flux
 
 
 @app.cell(hide_code=True)
@@ -69,20 +69,20 @@ def _():
 
 
 @app.cell(hide_code=True)
-def chargement_perimetre(flux_path, iterative_process_flux, pdls):
+def chargement_perimetre(flux_path, pdls, process_flux):
     from electricore.inputs.flux import lire_flux_c15
 
-    historique = lire_flux_c15(iterative_process_flux('C15', flux_path / 'C15'))
+    historique = lire_flux_c15(process_flux('C15', flux_path / 'C15'))
     historique['Marque'] = historique['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     historique = historique[sorted(historique.columns)]
     return (historique,)
 
 
 @app.cell(hide_code=True)
-def chargement_releves(flux_path, iterative_process_flux):
+def chargement_releves(flux_path, process_flux):
     from electricore.inputs.flux import lire_flux_r151
 
-    relevés = lire_flux_r151(iterative_process_flux('R151', flux_path / 'R151'))
+    relevés = lire_flux_r151(process_flux('R151', flux_path / 'R151'))
     return (relevés,)
 
 
@@ -94,6 +94,12 @@ def _(flux_path, iterative_process_flux, pdls):
     factures_réseau['Marque'] = factures_réseau['pdl'].isin(pdls['pdl']).apply(lambda x: 'EDN' if x else 'ZEL')
     prestations = factures_réseau[factures_réseau['Nature_EV'] == 'Prestations et frais']
     return (prestations,)
+
+
+@app.cell
+def _(flux_path, process_flux):
+    process_flux('R15', flux_path / 'R15')
+    return
 
 
 @app.cell(hide_code=True)
@@ -130,6 +136,12 @@ def _(export_path, relevés):
     releves_1er = relevés[relevés["Date_Releve"].dt.day == 1]
     releves_1er.to_parquet(export_path / 'releves_1er.parquet')
     releves_1er
+    return
+
+
+@app.cell
+def _(historique):
+    len(historique['pdl'].unique())
     return
 
 

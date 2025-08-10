@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.13.15"
+__generated_with = "0.14.11"
 app = marimo.App(width="medium")
 
 
@@ -36,6 +36,7 @@ def _(flux_path, iterative_process_flux):
 
     historique = lire_flux_c15(iterative_process_flux('C15', flux_path / 'C15'))
     historique = historique[sorted(historique.columns)]
+    len(historique['pdl'].unique())
     return (historique,)
 
 
@@ -76,9 +77,15 @@ def _(mo):
 
 
 @app.cell
+def _():
+    return
+
+
+@app.cell
 def _(ruptures):
     from electricore.core.périmètre import inserer_evenements_facturation as ief
     etendu = ief(ruptures)
+    etendu
     return (etendu,)
 
 
@@ -133,7 +140,19 @@ def _(periodes):
 
 @app.cell
 def _(periodes_turpe):
-    periodes_turpe[periodes_turpe['mois_annee']=='avril 2025']
+    periodes_turpe[periodes_turpe['mois_annee']=='juin 2025']
+    return
+
+
+@app.cell
+def _(historique):
+    from electricore.core.services import generer_periodes_completes
+    generer_periodes_completes(historique=historique)
+    return
+
+
+@app.cell
+def _():
     return
 
 
@@ -155,7 +174,47 @@ def _(relevés, ruptures):
 @app.cell
 def _(evenements_impactants):
     from electricore.core.périmètre import extraire_releves_evenements
-    extraire_releves_evenements(evenements_impactants)
+    rel = extraire_releves_evenements(evenements_impactants)
+    rel
+    return (rel,)
+
+
+@app.function
+def calculer_energies(
+    relevés,
+):
+    """Calcule l'énergie consommée entre relevés successifs par cadran."""
+
+    cadrans = ["BASE", "HP", "HC", "HPH", "HPB", "HCH", "HCB"]
+
+    triés = relevés.copy().sort_values(
+        by=["pdl", "Date_Releve", "ordre_index"]
+    )
+
+    décalés = triés.groupby("pdl").shift(1)
+
+    résultat = triés.copy()
+    résultat["Date_Debut"] = décalés["Date_Releve"]
+
+    for cadran in cadrans:
+        résultat[cadran] = triés[cadran] - décalés[cadran]
+
+    résultat = résultat.rename(columns={"Date_Releve": "Date_Fin"})[
+        ["pdl", "Date_Debut", "Date_Fin"] + cadrans
+    ]
+
+    # On filtre les lignes où Date_Debut est manquant (pas de relevé précédent)
+    résultat = résultat.dropna(subset=["Date_Debut"])
+
+    # On filtre les périodes où la Date_Debut = Date_Fin
+    résultat = résultat[résultat["Date_Debut"] != résultat["Date_Fin"]]
+
+    return résultat.dropna(subset=["Date_Debut"]).reset_index(drop=True)
+
+
+@app.cell
+def _(rel):
+    calculer_energies(rel)
     return
 
 

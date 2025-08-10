@@ -13,92 +13,82 @@ def _():
     from pathlib import Path
 
     from electriflux.simple_reader import process_flux, iterative_process_flux
-    return Path, mo
+    return Path, mo, pd
 
 
 @app.cell
 def _(Path, mo):
-    folder_picker = mo.ui.file_browser(
+    csv_folder_picker = mo.ui.file_browser(
         initial_path=Path('~/data/').expanduser(),
-        selection_mode="directory",
-        label="Sélectionnez le dossier de flux ENEDIS"
+        selection_mode="directory", 
+        label="Sélectionnez le dossier contenant les CSV à concaténer"
     )
-    return (folder_picker,)
+    return (csv_folder_picker,)
 
 
 @app.cell(hide_code=True)
-def _(folder_picker, mo):
+def _(csv_folder_picker, mo):
     mo.md(
         f"""
-    ## Sélection du dossier de flux ENEDIS
-    {folder_picker}
+    ## Sélection du dossier CSV
+    {csv_folder_picker}
     """
     )
     return
 
 
 @app.cell(hide_code=True)
-def _(folder_picker, mo):
-    mo.stop(not folder_picker.value, "⚠️ Sélectionnez d'abord un dossier")
+def _(csv_folder_picker, mo, pd):
+    mo.stop(not csv_folder_picker.value, "⚠️ Sélectionnez le dossier CSV")
 
-    selected_path = folder_picker.path(0)
+    csv_path = csv_folder_picker.path(0)
+    csv_files = list(csv_path.glob("*.csv"))
 
-    # Chemins des fichiers de clés
-    key_file = selected_path / "clef_chiffrement.txt"
-    iv_file = selected_path / "mot_de_passe.txt"
+    mo.stop(not csv_files, f"❌ Aucun fichier CSV trouvé dans {csv_path}")
 
-    # Chargement de la clé de chiffrement
-    mo.stop(not key_file.exists(), f"❌ Fichier clé_chiffrement.txt introuvable dans {selected_path}")
+    print(f"📁 Fichiers CSV trouvés : {len(csv_files)}")
+    for csv_file in csv_files:
+        print(f"  - {csv_file.name}")
 
-    key_hex = key_file.read_text().strip()
-    key = bytes.fromhex(key_hex)
+    # Lecture et concaténation de tous les CSV
+    dataframes = []
+    for csv_file in csv_files:
+        try:
+            df = pd.read_csv(csv_file, sep=';')
+            print(f"✅ {csv_file.name}: {len(df)} lignes")
+            dataframes.append(df)
+        except Exception as e:
+            print(f"❌ Erreur lecture {csv_file.name}: {e}")
 
-    # Chargement du mot de passe (15 caractères)
-    mo.stop(not iv_file.exists(), f"❌ Fichier mot_de_passe.txt introuvable dans {selected_path}")
-    iv_raw = iv_file.read_text().strip()
-    
-    # TODO: Clarifier avec ENEDIS le format exact de l'IV
-    # En attendant, padding simple à 16 bytes
-    print(f"IV original: '{iv_raw}' (longueur: {len(iv_raw)})")
-    iv = (iv_raw + '\0').encode('utf-8')[:16]
-    print(f"IV utilisé: {iv.hex()}")
-    return iv, key, selected_path, iv_raw
+    if dataframes:
+        concatenated_df = pd.concat(dataframes, ignore_index=True)
+        print(f"\n📊 Données concaténées: {len(concatenated_df)} lignes, {len(concatenated_df.columns)} colonnes")
+    else:
+        concatenated_df = pd.DataFrame()
+        print("❌ Aucune donnée à concaténer")
+
+    return (concatenated_df,)
 
 
 @app.cell(hide_code=True)
-def _(iv, key, mo, selected_path, iv_raw):
-    import zipfile
-    from electriflux.utils import decrypt_file
+def _(concatenated_df, mo):
+    mo.stop(concatenated_df.empty, "❌ Aucune donnée disponible")
 
-    # Recherche des fichiers .zip
-    zip_files = list(selected_path.glob("*.zip"))
-    mo.stop(not zip_files, f"❌ Aucun fichier .zip trouvé dans {selected_path}")
+    mo.md(f"""
+    ## Aperçu des données concaténées
+    **{len(concatenated_df)} lignes** - **{len(concatenated_df.columns)} colonnes**
+    """)
+    return
 
-    # Dossier de sortie
-    output_path = selected_path / "extracted"
-    output_path.mkdir(exist_ok=True)
 
-    processed_files = []
+@app.cell
+def _(concatenated_df):
+    concatenated_df.sort_values(by=['OFFRE_FRN_HC', 'DATE_BASCULE'])
+    return
 
-    for zip_file in zip_files:
-        try:
-            print(f"\n📁 Traitement de {zip_file.name}")
-            
-            # Tentative avec electriflux (pour documentation)
-            try:
-                decrypted_path = decrypt_file(zip_file, key, iv)
-                with zipfile.ZipFile(decrypted_path, 'r') as zip_ref:
-                    zip_ref.extractall(output_path)
-                print("✅ Décryptage réussi avec electriflux")
-                processed_files.append(zip_file.name)
-            except Exception as e:
-                print(f"❌ Échec avec electriflux: {e}")
-                print("💡 Vérifier les clés de chiffrement avec ENEDIS")
 
-        except Exception as e:
-            print(f"❌ Erreur lors du traitement de {zip_file.name}: {e}")
-    
-    print(f"\n📊 Résumé: {len(processed_files)} fichiers traités sur {len(zip_files)}")
+@app.cell
+def _():
     return
 
 
